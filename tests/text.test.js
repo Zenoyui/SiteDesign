@@ -32,7 +32,7 @@ const { chromium } = require(require('child_process').execSync('npm root -g').to
       const L = SD.render.layoutText(el);
       if (L.relaxed || L.broken) { relaxedN++; continue; }
       L.lines.forEach((l, i) => {
-        if (i > 0 && /^[—–]/.test(l.trim())) fails.push(`«${ph}» w=${w}: строка начинается с тире`);
+        if (i > 0 && !L.starts[i] && /^[—–]/.test(l.trim())) fails.push(`«${ph}» w=${w}: строка начинается с тире`);
         if (i < L.lines.length - 1 && SHORT.test(l.trim())) fails.push(`«${ph}» w=${w}: висячее «${l.trim().split(/\s| /).pop()}»`);
         if (L.widths[i] > w + 0.3) fails.push(`«${ph}» w=${w}: строка шире блока`);
         if (/\d$/.test(l.trim()) && i < L.lines.length - 1 && /^[₽%]/.test(L.lines[i + 1].trim())) fails.push(`«${ph}» w=${w}: число оторвано от знака`);

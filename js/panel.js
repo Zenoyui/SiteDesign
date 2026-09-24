@@ -167,7 +167,7 @@ SD.panel = (function () {
     // Заливка / обводка
     const fillRows = [];
     if (el.type !== 'line' && el.type !== 'image') {
-      fillRows.push(['Заливка', h('span', null, color('fill', el.fill, (v, c) => { el.fill = v; el.fillRole = null; live(c); }), ' ', swatches((v, role) => { el.fill = v; el.fillRole = role; A.commit(); }))]);
+      fillRows.push(['Заливка', h('span', null, color('fill', el.fill, (v, c) => { el.fill = v; el.fillRole = null; if (el.gradType) el.grad = SD.gen.gradFor(el.gradType, v, A.pal(), null, el.gradSeed); live(c); }), ' ', swatches((v, role) => { el.fill = v; el.fillRole = role; A.commit(); }))]);
       if (['rect', 'ellipse', 'star', 'wave', 'text'].includes(el.type)) fillRows.push(['Градиент', h('span', null,
         check('grad', !!el.fill2, 'вкл. ', v => { el.fill2 = v ? A.pal().accent : null; el.fill2Role = null; A.commit(); }),
         el.fill2 ? color('fill2', el.fill2, (v, c) => { el.fill2 = v; el.fill2Role = null; live(c); }) : '',
@@ -194,6 +194,11 @@ SD.panel = (function () {
         color('stroke', el.stroke || '#000000', (v, c) => { el.stroke = v; el.strokeRole = null; if (!el.strokeW) el.strokeW = 0.5; live(c); }), ' толщина ',
         num('sw', el.strokeW || 0, (v, c) => { el.strokeW = Math.max(0, v); live(c); }, { step: 0.1, min: 0 }))]);
     }
+    if (['rect', 'ellipse', 'star', 'wave'].includes(el.type)) fillRows.push(['Современный градиент', select('gtype', el.gradType || 'none', Object.entries(SD.gen.GRAD_TYPES), v => {
+      el.gradType = v === 'none' ? null : v; el.gradSeed = el.gradSeed || 3;
+      el.grad = el.gradType ? SD.gen.gradFor(el.gradType, el.fill, A.pal(), null, el.gradSeed) : null;
+      A.commit();
+    })]);
     if (el.type === 'rect' || el.type === 'image' || el.type === 'qr') fillRows.push(['Скругление', num('rad', el.radius || 0, (v, c) => { el.radius = Math.max(0, v); live(c); }, { min: 0 })]);
     if (el.type === 'star') fillRows.push(['Лучей / глубина', h('span', null, num('pts', el.points || 5, (v, c) => { el.points = u.clamp(Math.round(v), 3, 40); live(c); }, { step: 1, min: 3 }), ' ', num('inr', Math.round((el.inner || 0.5) * 100), (v, c) => { el.inner = u.clamp(v, 5, 100) / 100; live(c); }, { step: 5 }))]);
     if (el.type === 'wave') fillRows.push(['Волны / высота', h('span', null, num('wv', el.waves || 2, (v, c) => { el.waves = Math.max(0.5, v); live(c); }, { step: 0.5 }), ' ', num('amp', Math.round((el.amp || 0.3) * 100), (v, c) => { el.amp = u.clamp(v, 0, 100) / 100; live(c); }, { step: 5 }))]);

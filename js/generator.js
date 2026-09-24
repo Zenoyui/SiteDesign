@@ -161,6 +161,7 @@ SD.gen = (function () {
     const doc = { w: W, h: H, format: ans.format, orient: ans.orient, pages, dirty: false, notes: ctx.notes };
     if (ctx.fx.pattern && ctx.fx.pattern !== 'none') for (const pg of pages) pg.elements.unshift(mkPattern(ctx, ctx.fx.pattern));
     applyEffects(doc, ctx);
+    applyGradient(doc, ctx);
     applyPalette(doc, pal);
     return doc;
   }
@@ -231,7 +232,9 @@ SD.gen = (function () {
   }
 
   function mkQr(ctx, s, x, y, q) {
-    const qr = base({ type: 'qr', name: 'QR-код', role: 'qr', data: ctx.T.qr || 'https://example.com', x, y, w: q, h: q, fillRole: 'text', cons: { h: 'scale', v: 'scale' } });
+    // светлая подложка — «тихая зона» вокруг кода, чтобы он считывался на любом фоне
+    const dark = u.lum(ctx.pal.text) < 0.4;
+    const qr = base({ type: 'qr', name: 'QR-код', role: 'qr', data: ctx.T.qr || 'https://example.com', x, y, w: q, h: q, fillRole: dark ? 'text' : 'bg', fill2Role: dark ? 'bg' : 'text', radius: q * 0.06, cons: { h: 'scale', v: 'scale' } });
     return [qr];
   }
 
@@ -369,9 +372,6 @@ SD.gen = (function () {
         // вместе с мягкой тенью жёсткая достаётся только кнопке и бейджу — так видны обе
         if (E.has('hardShadow') && (E.has('shadow') ? ['cta', 'promo'].includes(el.role) : lifted)) el.shadow = { x: b * 0.012, y: b * 0.012, blur: 0, colorRole: 'text', alpha: 1 };
         if (E.has('glow') && (el.role === 'cta' || el.role === 'promo')) el.shadow = { x: 0, y: 0, blur: b * 0.06, colorRole: el.fillRole || 'primary', alpha: 0.75 };
-        if (E.has('gradient') && ['rect', 'ellipse', 'star', 'wave'].includes(el.type) && !el.fill2Role && (el.fillRole === 'primary' || el.fillRole === 'accent')) {
-          el.fill2Role = el.fillRole + '2'; el.gradAngle = 120;
-        }
         if (E.has('sticker') && ['promo', 'cta', 'image', 'display'].includes(el.role) && el.type !== 'text') {
           el.stroke = '#FFFFFF'; el.strokeRole = null; el.strokeW = b * 0.014;
           if (!el.shadow) el.shadow = { x: 0, y: b * 0.004, blur: b * 0.015, color: '#000000', alpha: 0.25 };
@@ -391,13 +391,98 @@ SD.gen = (function () {
     return base({ type: 'pattern', name: 'Узор', role: 'pattern', kind, cell: u.round(ctx.base * cellK, 2), seed: 11, x: 0, y: 0, w: ctx.W, h: ctx.H,
       fillRole: useText ? 'text' : 'primary', fill2Role: 'accent', opacity: useText ? 0.07 : 0.16, locked: true, cons: { h: 'left-right', v: 'top-bottom' } });
   }
+  // ---------- Градиент: нужен ли и какой ----------
+  // Правила собраны из исследований восприятия (см. SD.GRADIENT_RULES в brands.js).
+  const GRAD_IND = { finance: 2, event: 2, beauty: 2, kids: 1, transport: 1, premium: 1, education: 1, delivery: 0, coffee: 0, food: 0, retail: -1, eco: -2 };
+  const GRAD_STYLE = { urent: 2, yandex: 0, go: -1, bk: -1, whoosh: -2, vit: -2 };
+  function surfaces(doc, ctx) {
+    const A = ctx.W * ctx.H;
+    const list = [];
+    for (const p of doc.pages) for (const el of p.elements) {
+      if (!['rect', 'ellipse', 'wave', 'star'].includes(el.type) || !el.fillRole || !['primary', 'accent', 'ctaMax', 'bg', 'soft'].includes(el.fillRole)) continue;
+      if (el.role === 'pattern' || el.opacity < 0.5) continue;
+      const big = el.w * el.h / A;
+      if (['panel', 'card', 'display', 'cta', 'promo'].includes(el.role) || big > 0.04) list.push({ el, big });
+    }
+    return list;
+  }
+  function decideGradient(doc, ctx) {
+    const setting = (ctx.fx.gradient || 'auto');
+    const forced = (ctx.fx.effects || []).includes('gradient');
+    const reasons = [];
+    const surf = surfaces(doc, ctx);
+    const bigArea = surf.reduce((a, s) => a + (s.big > 0.04 ? s.big : 0), 0);
+    if (setting !== 'auto') return { type: setting, reasons: [setting === 'none' ? 'Градиент выключен вручную.' : 'Тип градиента выбран вручную.'], score: null, surf };
+    let score = 0;
+    const ind = ctx.ans.industry || 'transport';
+    const gi = GRAD_IND[ind] || 0; score += gi;
+    reasons.push(`Сфера «${(SD.INDUSTRIES[ind] || {}).name}»: ${gi > 0 ? 'градиенты уместны — ассоциируются с технологичностью, праздником, красотой' : gi < 0 ? 'лучше плоский цвет — честность и простота важнее эффекта' : 'нейтрально'} (${gi > 0 ? '+' : ''}${gi}).`);
+    const st = ctx.v.colorsFrom, gs = GRAD_STYLE[st] || 0; score += gs;
+    reasons.push(`Стиль «${SD.STYLES[st].name}» ${gs > 0 ? 'сам построен на градиентах' : gs < 0 ? 'построен на плоских цветах' : 'допускает оба варианта'} (${gs > 0 ? '+' : ''}${gs}).`);
+    if (bigArea > 0.12) { score += 1; reasons.push(`Есть крупные цветные поверхности (${Math.round(bigArea * 100)}% листа) — на них градиент читается как объём (+1).`); }
+    else { score -= 1; reasons.push('Крупных цветных поверхностей мало — на мелких деталях градиент выглядит устаревшим (−1).'); }
+    const vivid = SD.color.chroma(ctx.pal.primary) > 0.12;
+    if (vivid) { score += 1; reasons.push('Основной цвет насыщенный — переходы оттенков будут сочными (+1).'); }
+    if (ctx.fx.pattern && ctx.fx.pattern !== 'none') { score -= 1; reasons.push('Уже есть фоновый узор — вместе с градиентом будет пёстро, растёт визуальная сложность (−1).'); }
+    if (ctx.ans.opts.image) { score -= 1; reasons.push('Есть фотография — ей нужен спокойный фон (−1).'); }
+    const load = Object.values(ctx.ans.mk || {}).filter(Boolean).length;
+    if (load >= 5) { score -= 1; reasons.push(`Включено ${load} приёмов внимания — макет и так насыщен, лишний эффект повышает когнитивную нагрузку (−1).`); }
+    if (forced) { score = Math.max(score, 2); reasons.push('Эффект «Градиент» включён в наборе стиля.'); }
+    let type = 'none';
+    if (score >= 2) {
+      const darkBg = SD.color.lightness(ctx.pal.bg) < 0.45;
+      if (darkBg && ['event', 'finance', 'kids', 'beauty'].includes(ind)) type = 'aurora';
+      else if (['premium'].includes(ind) || (darkBg && !vivid)) type = 'radial';
+      else if (bigArea > 0.12 && vivid) type = 'mesh';
+      else type = 'linear';
+      reasons.push(`Итог ${score} ≥ 2 — градиент нужен. Тип: ${GRAD_TYPES[type]}.`);
+    } else reasons.push(`Итог ${score} < 2 — плоский цвет выглядит чище и современнее здесь.`);
+    return { type, reasons, score, surf };
+  }
+  const GRAD_TYPES = { none: 'без градиента', linear: 'линейный (OKLCH)', radial: 'радиальное свечение', mesh: 'многоточечный (mesh)', aurora: 'аврора с зерном' };
+  function applyGradient(doc, ctx) {
+    const d = decideGradient(doc, ctx);
+    doc.decisions = doc.decisions || [];
+    doc.decisions.push({ topic: 'Градиент', choice: GRAD_TYPES[d.type], reasons: d.reasons, score: d.score });
+    if (d.type === 'none') return;
+    for (const { el, big } of d.surf) {
+      // на маленьких элементах сложный градиент превращается в «грязь» — там простой линейный
+      el.gradType = big > 0.04 || el.role === 'panel' || el.role === 'display' ? d.type : 'linear';
+      el.gradSeed = (el.x * 7 + el.y * 13) | 0;
+    }
+  }
+  // Цвета градиента из базового цвета: соседние оттенки в OKLCH, контраст с текстом поверх сохраняется
+  function gradFor(type, base, pal, on, seed) {
+    const C = SD.color;
+    const keep = c => {
+      if (!on) return c;
+      for (let i = 0; i < 14 && u.contrast(c, on) < 4.5; i++) c = C.shift(c, 0, SD.color.lightness(on) > 0.6 ? -0.025 : 0.025, 0);
+      return c;
+    };
+    const r = n => { const x = Math.sin((seed || 1) * 12.9898 + n * 78.233) * 43758.5453; return x - Math.floor(x); };
+    if (type === 'linear') return { type, angle: 110 + Math.round(r(1) * 50), colors: [keep(C.shift(base, -22, 0.04, 0.01)), base, keep(C.shift(base, 28, -0.05, 0.02))] };
+    if (type === 'radial') return { type, cx: 0.25 + r(2) * 0.2, cy: 0.2 + r(3) * 0.15, colors: [keep(C.shift(base, 12, 0.1, 0.02)), base, keep(C.shift(base, -10, -0.05, 0))] };
+    if (type === 'mesh') return { type, grain: 0.14, points: [
+      { x: 0.1 + r(4) * 0.2, y: 0.15 + r(5) * 0.2, r: 0.65, a: 0.9, c: keep(C.shift(base, 38, 0.06, 0.03)) },
+      { x: 0.75 + r(6) * 0.2, y: 0.25 + r(7) * 0.2, r: 0.6, a: 0.85, c: keep(C.mixOklch(base, pal.accent, 0.45)) },
+      { x: 0.45 + r(8) * 0.3, y: 0.85 + r(9) * 0.15, r: 0.7, a: 0.9, c: keep(C.shift(base, -32, -0.04, 0.02)) }] };
+    if (type === 'aurora') return { type, grain: 0.24, points: [
+      { x: 0.05, y: 0.1, r: 0.8, a: 0.9, c: keep(C.shift(base, 45, 0.08, 0.04)) },
+      { x: 0.95, y: 0.2, r: 0.75, a: 0.85, c: keep(C.mixOklch(base, pal.accent, 0.6)) },
+      { x: 0.3 + r(10) * 0.4, y: 0.6, r: 0.6, a: 0.7, c: keep(C.shift(base, -40, 0.02, 0.03)) },
+      { x: 0.9, y: 0.95, r: 0.7, a: 0.8, c: keep(C.shift(base, 22, 0.12, -0.01)) },
+      { x: 0.1, y: 0.95, r: 0.6, a: 0.7, c: keep(C.shift(C.mixOklch(base, pal.accent, 0.3), -20, -0.03, 0.02)) }] };
+    return null;
+  }
+  const ON = { primary: 'onPrimary', accent: 'onAccent', ctaMax: 'onCtaMax', bg: 'text', soft: 'text' };
+
   function fxFor(ans) {
     if (ans.fx && !ans.fx.auto) return ans.fx;
     const S = ans.styles && ans.styles.length ? ans.styles : ['yandex'];
     const k0 = SD.KITS[S[0]], k1 = S[1] ? SD.KITS[S[1]] : null;
     const eff = k0.effects.slice();
     if (k1 && k1.effects[0] && !eff.includes(k1.effects[0])) eff.push(k1.effects[0]);
-    return { auto: true, effects: eff, icons: k0.icons, pattern: 'none', display: 'none' };
+    return { auto: true, effects: eff, icons: k0.icons, pattern: 'none', display: 'none', gradient: 'auto' };
   }
 
 
@@ -758,7 +843,12 @@ SD.gen = (function () {
       const q = ctx.base * (land ? 0.3 : 0.24);
       const qr = mkQr(ctx, s, W - m - q, land ? (H - q) / 2 : H - m - q - waveH * 0.6, q)[0];
       els.push(qr);
-      els.push(text({ name: 'Подпись QR', role: 'qrLabel', text: 'Наведите камеру', font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), align: 'center', fillRole: 'text', x: qr.x - 5, y: qr.y + q + 1, w: q + 10, pin: { id: qr.id, dx: -5, dy: q + 1 } }));
+      const lab = text({ name: 'Подпись QR', role: 'qrLabel', text: 'Наведите камеру', font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), align: 'center', fillRole: 'text', x: qr.x - 5, w: q + 10 });
+      // на волне подпись не читается — ставим её над кодом
+      const below = !waveH && qr.y + q + 1 + lab.h < H - m * 0.5;
+      lab.y = below ? qr.y + q + 1 : qr.y - lab.h - 1;
+      lab.pin = { id: qr.id, dx: -5, dy: lab.y - qr.y };
+      els.push(lab);
     }
     // подгонка: заголовок не рвёт слова, подробности не залезают на контакты и QR
     const limitB = Math.min(H - m, ...els.filter(e => e.role === 'contacts' || (e.type === 'qr' && !land)).map(e => e.y)) - gap * 0.5;
@@ -798,6 +888,7 @@ SD.gen = (function () {
         if (el.strokeRole && pal[el.strokeRole]) el.stroke = pal[el.strokeRole];
         if (el.bg && el.bg.fillRole && pal[el.bg.fillRole]) el.bg.fill = pal[el.bg.fillRole];
         if (el.shadow && el.shadow.colorRole && pal[el.shadow.colorRole]) el.shadow.color = pal[el.shadow.colorRole];
+        if (el.gradType) el.grad = gradFor(el.gradType, el.fill, pal, pal[ON[el.fillRole]] || null, el.gradSeed);
       }
     }
   }
@@ -820,5 +911,5 @@ SD.gen = (function () {
     }
   }
 
-  return { variants, palette, withDerived, build, applyPalette, applyTexts, base, text, styleProps, fxFor };
+  return { variants, palette, withDerived, build, applyPalette, applyTexts, base, text, styleProps, fxFor, decideGradient, gradFor, GRAD_TYPES };
 })();

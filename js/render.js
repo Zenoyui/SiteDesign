@@ -71,9 +71,10 @@ SD.render = (function () {
     const padX = bg ? (bg.padX || 0) : 0, padY = bg ? (bg.padY || 0) : 0;
     const maxW = Math.max(1, el.w - padX * 2) * TX;
     const W = t => mctx.measureText(t).width;
-    const lines = [];
+    const lines = [], starts = [];
     let broken = false, relaxed = false;
     for (const para of prepText(el).split('\n')) {
+      starts[lines.length] = true; // эта строка начинает абзац (после ручного перевода строки)
       const queue = para.split(/( +)/);
       let cur = '';
       while (queue.length) {
@@ -110,7 +111,7 @@ SD.render = (function () {
       lines.push(cur.replace(/ +$/, ''));
     }
     const lineH = el.size * PT * (el.lh || 1.2);
-    return { lines, lineH, padX, padY, broken, relaxed, height: Math.max(lineH, lines.length * lineH) + padY * 2, widths: lines.map(l => W(l) / TX) };
+    return { lines, starts, lineH, padX, padY, broken, relaxed, height: Math.max(lineH, lines.length * lineH) + padY * 2, widths: lines.map(l => W(l) / TX) };
   }
   function textWidth(el) {
     mctx.font = fontOf(el, TX);
@@ -122,6 +123,21 @@ SD.render = (function () {
   }
 
   function paint(ctx, el, color, w, h) {
+    const G = el.grad;
+    if (G && G.colors && G.colors.length > 1 && (G.type === 'linear' || G.type === 'radial')) {
+      const stops = SD.color.ramp(G.colors, 12);
+      let g;
+      if (G.type === 'radial') {
+        const cx = (G.cx == null ? 0.3 : G.cx) * w, cy = (G.cy == null ? 0.25 : G.cy) * h;
+        g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)));
+      } else {
+        const a = (G.angle || 0) * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a);
+        const L = (Math.abs(w * dx) + Math.abs(h * dy)) / 2;
+        g = ctx.createLinearGradient(w / 2 - dx * L, h / 2 - dy * L, w / 2 + dx * L, h / 2 + dy * L);
+      }
+      for (const st of stops) g.addColorStop(st.t, st.c);
+      return g;
+    }
     if (el.fill2) {
       const a = (el.gradAngle || 0) * Math.PI / 180;
       const dx = Math.cos(a), dy = Math.sin(a);
@@ -142,7 +158,34 @@ SD.render = (function () {
     ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
   }
+  // Многоточечный (mesh) градиент: база + мягкие цветные пятна, сглаженные по smoothstep
+  function drawMesh(ctx, el, w, h) {
+    const G = el.grad;
+    for (const p of G.points || []) {
+      const cx = p.x * w, cy = p.y * h, r = p.r * Math.max(w, h);
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      for (let i = 0; i <= 8; i++) { const t = i / 8, a = (1 - (3 * t * t - 2 * t * t * t)) * (p.a == null ? 1 : p.a); g.addColorStop(t, rgba(p.c, a)); }
+      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    }
+  }
   function fillStroke(ctx, el, w, h) {
+    const G = el.grad;
+    if (G && el.fill && (G.type === 'mesh' || G.type === 'aurora')) {
+      ctx.save();
+      ctx.fillStyle = el.fill; ctx.fill();
+      noShadow(ctx);
+      ctx.clip();
+      drawMesh(ctx, el, w, h);
+      if (G.grain) drawGrain(ctx, w, h, G.grain, 0);
+      ctx.restore();
+      if (el.stroke && el.strokeW > 0) { ctx.strokeStyle = el.stroke; ctx.lineWidth = el.strokeW; ctx.stroke(); }
+      return;
+    }
+    if (G && G.grain && el.fill) {
+      ctx.save(); ctx.fillStyle = paint(ctx, el, el.fill, w, h); ctx.fill(); noShadow(ctx); ctx.clip(); drawGrain(ctx, w, h, G.grain, 0); ctx.restore();
+      if (el.stroke && el.strokeW > 0) { ctx.strokeStyle = el.stroke; ctx.lineWidth = el.strokeW; ctx.stroke(); }
+      return;
+    }
     if (el.fill && el.fill !== 'none') { ctx.fillStyle = paint(ctx, el, el.fill, w, h); ctx.fill(); }
     if (el.stroke && el.strokeW > 0) { ctx.strokeStyle = el.stroke; ctx.lineWidth = el.strokeW; ctx.stroke(); }
   }

@@ -16,6 +16,7 @@ SD.wizard = (function () {
     { id: 'layout', title: 'Расположение', render: stepLayout, live: true },
     { id: 'details', title: 'Детали', render: stepDetails },
     { id: 'effects', title: 'Эффекты и значки', render: stepEffects, live: true },
+    { id: 'auto', title: 'Автопилот', render: stepAuto },
     { id: 'editor', title: 'Редактор', render: stepEditor },
     { id: 'result', title: 'Результат', render: stepResult, live: true }
   ];
@@ -440,6 +441,22 @@ SD.wizard = (function () {
     }
     root.append(h('div', { class: 'cap' }, 'Рисунок 3. Эффекты'), g1);
 
+    root.append(h('div', { class: 'q' }, 'Градиент'));
+    root.append(h('p', { class: 'note' }, 'Градиенты строятся в цветовом пространстве OKLCH — без серой «грязной» середины, с мягкими пятнами и зерном, как в современных интерфейсах. «Авто» решает, нужен ли градиент, по правилам ниже.'));
+    const gg = h('div', { class: 'thumbs' });
+    for (const [k, nm] of Object.entries(Object.assign({ auto: 'Авто (решает страница)' }, SD.gen.GRAD_TYPES))) {
+      gg.append(h('div', { class: 'thumb' + ((fx.gradient || 'auto') === k ? ' on' : ''), onclick: () => setFx({ gradient: k }) },
+        thumb(withAns({ fx: Object.assign({}, fx, { auto: false, gradient: k }) }), 110, 130), h('div', null, nm)));
+    }
+    root.append(h('div', { class: 'cap' }, 'Рисунок 6. Градиенты'), gg);
+    const dec = (S.doc.decisions || []).find(d => d.topic === 'Градиент');
+    if (dec) {
+      const td = h('table', { class: 'doc compact' });
+      td.append(h('tr', null, h('th', null, `Решение для текущего макета: ${dec.choice}`)));
+      for (const r of dec.reasons) td.append(h('tr', null, h('td', null, r)));
+      root.append(h('div', { class: 'cap' }, 'Таблица. Почему так решено'), td);
+    }
+
     root.append(h('div', { class: 'q' }, 'Стиль значков'));
     const it = h('table', { class: 'doc compact' });
     const pal = A.pal();
@@ -470,6 +487,68 @@ SD.wizard = (function () {
         h('div', null, d.name), h('div', { class: 'note' }, d.desc + (d.like.length ? ' · как ' + tag(d.like) : ''))));
     }
     root.append(h('div', { class: 'cap' }, 'Рисунок 5. Показ продукта'), g3);
+  }
+
+  // ---------- Автопилот ----------
+  let autoRes = null, autoSel = 0;
+  const autoKeep = { style: false, layout: false, fx: false };
+  function scoreTable(sc) {
+    const t = h('table', { class: 'doc compact' });
+    t.append(h('tr', null, h('th', null, 'Критерий'), h('th', null, 'Вес'), h('th', null, 'Оценка'), h('th', null, 'Что видит «мозг»')));
+    for (const e of SD.brain.explain(sc)) t.append(h('tr', null, h('td', null, e.name, h('br'), h('span', { class: 'note' }, e.src)), h('td', { class: 'c' }, String(e.w)), h('td', { class: 'c' }, e.value + '%'), h('td', null, e.why)));
+    t.append(h('tr', null, h('td', null, h('b', null, 'Итого')), h('td', { class: 'c' }, '100'), h('td', { class: 'c' }, h('b', null, sc.total + '/100')), h('td', null, sc.errs ? 'Есть ошибки текста — итог ограничен 55' : sc.total >= 85 ? 'Сильный макет' : sc.total >= 75 ? 'Хороший макет' : 'Можно лучше')));
+    return t;
+  }
+  function stepAuto(root) {
+    root.append(h('p', null, 'Здесь страница «думает» за дизайнера: собирает сотни вариантов из ваших ответов и оценивает каждый так, как человек за первые доли секунды — по 10 критериям из исследований восприятия и принятия решений. Потом тщательно перепроверяет лучших и показывает шесть самых сильных, с объяснением.'));
+    const cur = SD.brain.score(S.doc, S.answers);
+    root.append(h('div', { class: 'q' }, `Текущий макет: ${cur.total}/100`));
+    root.append(h('div', { class: 'cap' }, 'Таблица. Оценка текущего макета'), scoreTable(cur));
+    root.append(h('div', { class: 'q' }, 'Вопрос. Что нельзя менять при подборе?'));
+    const kt = h('table', { class: 'doc compact' });
+    for (const [k, nm] of [['style', 'Стиль и цвета (вариант сочетания)'], ['layout', 'Расположение'], ['fx', 'Эффекты, узор, показ, градиент']]) {
+      const cb = h('input', { type: 'checkbox', checked: autoKeep[k] });
+      cb.addEventListener('change', () => { autoKeep[k] = cb.checked; });
+      kt.append(h('tr', null, h('td', { class: 'c', style: { width: '32px' } }, cb), h('td', null, nm)));
+    }
+    root.append(kt, h('p', { class: 'note' }, 'Тексты, формат, сфера и приёмы внимания не меняются никогда — это ваше содержание.'));
+    const bar = h('div', { style: { border: '1px solid #000', height: '12px', margin: '6px 0', display: 'none' } }, h('div', { style: { background: '#D9D9D9', height: '100%', width: '0%' } }));
+    const status = h('p', { class: 'note' });
+    const btn = h('button', { class: 'btn primary' }, autoRes ? 'Подобрать ещё раз' : 'Подобрать лучший вариант');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; bar.style.display = 'block';
+      const t0 = performance.now();
+      autoRes = await SD.brain.search(S.answers, { keep: autoKeep, n: 160, seed: 7 + Math.floor(Math.random() * 1000), onProgress: (f, i, n) => { bar.firstChild.style.width = Math.round(f * 100) + '%'; status.textContent = f < 0.8 ? `Смотрю варианты: ${i} из ${n}…` : 'Тщательно проверяю лучших (контраст по пикселям)…'; } });
+      autoRes.ms = Math.round(performance.now() - t0);
+      autoSel = 0; btn.disabled = false; render();
+    });
+    root.append(h('div', { class: 'btn-row' }, btn), bar, status);
+    if (autoRes && autoRes.best.length) {
+      root.append(h('p', null, `Проверено вариантов: ${autoRes.tested} за ${u.round(autoRes.ms / 1000, 1)} с. Лучшие:`));
+      const g = h('div', { class: 'thumbs' });
+      autoRes.best.forEach((b, i) => {
+        const k = Math.min(120 / b.doc.w, 150 / b.doc.h);
+        const c = SD.render.pageCanvas(b.doc, b.doc.pages[0], k * 2);
+        c.style.width = b.doc.w * k + 'px'; c.style.height = b.doc.h * k + 'px';
+        const v = SD.gen.variants(b.ans.styles)[b.ans.variant] || {};
+        g.append(h('div', { class: 'thumb' + (i === autoSel ? ' on' : ''), onclick: () => { autoSel = i; render(); } }, c,
+          h('div', null, h('b', null, b.score.total + '/100')), h('div', { class: 'note' }, `${SD.LAYOUTS[b.ans.layout].name} · ${v.title || ''} · ${SD.gen.GRAD_TYPES[(b.doc.decisions || []).find(d => d.topic === 'Градиент') ? Object.keys(SD.gen.GRAD_TYPES).find(t => SD.gen.GRAD_TYPES[t] === b.doc.decisions.find(d => d.topic === 'Градиент').choice) : 'none']}`)));
+      });
+      root.append(h('div', { class: 'cap' }, 'Рисунок. Лучшие варианты'), g);
+      const b = autoRes.best[autoSel];
+      root.append(h('div', { class: 'btn-row' }, h('button', { class: 'btn primary', onclick: () => {
+        const texts = S.answers.texts, mk = S.answers.mk;
+        S.answers = Object.assign(JSON.parse(JSON.stringify(b.ans)), { texts, mk });
+        A.regenerate(true); A.save(); SD.toast('Применён вариант ' + b.score.total + '/100'); render();
+      } }, `Применить вариант ${autoSel + 1} (${b.score.total}/100)`)));
+      root.append(h('div', { class: 'cap' }, `Таблица. Почему вариант ${autoSel + 1} сильный`), scoreTable(b.score));
+      const dec = (b.doc.decisions || [])[0];
+      if (dec) { const td = h('table', { class: 'doc compact' }); td.append(h('tr', null, h('th', null, `Градиент: ${dec.choice}`))); for (const r of dec.reasons) td.append(h('tr', null, h('td', null, r))); root.append(td); }
+    }
+    const src = h('table', { class: 'doc compact' });
+    src.append(h('tr', null, h('th', null, 'Исследование'), h('th', null, 'Вывод'), h('th', null, 'Как вшито в код')));
+    for (const [a, b2, c] of SD.BRAIN_SOURCES) src.append(h('tr', null, h('td', null, a), h('td', null, b2), h('td', null, c)));
+    root.append(h('div', { class: 'cap' }, 'Таблица. На чём основана оценка'), src);
   }
 
   // ---------- 7. Расположение ----------
@@ -564,6 +643,8 @@ SD.wizard = (function () {
     for (const [k, val] of rows) t.append(h('tr', null, h('td', null, k), h('td', null, val)));
     root.append(h('div', { class: 'cap' }, 'Таблица 15. Сводка по макету'), t);
 
+    const bs = SD.brain.score(S.doc, S.answers);
+    root.append(h('div', { class: 'cap' }, 'Таблица. Готовность к выпуску'), SD.ready.table(SD.ready.check(S.doc, S.answers, S.exportOpts, bs.total)));
     root.append(SD.panel.lintBox({}));
     root.append(h('p', { class: 'note' }, 'Перед печатью исправьте ошибки: текст за краем листа срежется, мелкий или бледный текст не прочитают. Нажмите «Показать» — элемент выделится в редакторе.'));
     const o = S.exportOpts;

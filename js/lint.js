@@ -111,7 +111,7 @@ SD.lint = (function () {
         if (L.broken) out.push(issue('warn', pi, el, 'midword', 'Слово не поместилось в строку и разорвано переносом — уменьшите кегль или расширьте блок'));
         L.lines.forEach((line, i) => {
           if (i < L.lines.length - 1 && SHORT.test(line.trim())) out.push(issue('error', pi, el, 'hanging', `Висячий предлог или союз в конце строки: «…${line.trim().slice(-12)}»`));
-          if (i > 0 && /^[—–]/.test(line.trim())) out.push(issue('error', pi, el, 'dash', 'Строка начинается с тире — по правилам тире остаётся в конце предыдущей строки'));
+          if (i > 0 && !(L.starts && L.starts[i]) && /^[—–]/.test(line.trim())) out.push(issue('error', pi, el, 'dash', 'Строка начинается с тире — по правилам тире остаётся в конце предыдущей строки'));
         });
         // длина строки для основного текста
         if (el.role !== 'title' && L.lines.length > 2) {
