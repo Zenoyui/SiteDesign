@@ -400,7 +400,7 @@ SD.gen = (function () {
     const list = [];
     for (const p of doc.pages) for (const el of p.elements) {
       if (!['rect', 'ellipse', 'wave', 'star'].includes(el.type) || !el.fillRole || !['primary', 'accent', 'ctaMax', 'bg', 'soft'].includes(el.fillRole)) continue;
-      if (el.role === 'pattern' || el.opacity < 0.5) continue;
+      if (el.role === 'pattern' || (el.opacity < 0.5 && !['panel', 'card'].includes(el.role))) continue;
       // почти бесцветным поверхностям (серые подложки) градиент не нужен — будет «грязь»
       if (SD.color.chroma(ctx.pal[el.fillRole] || '#888888') < 0.05) continue;
       const big = el.w * el.h / A;
@@ -414,6 +414,7 @@ SD.gen = (function () {
     const reasons = [];
     const surf = surfaces(doc, ctx);
     const bigArea = surf.reduce((a, s) => a + (s.big > 0.04 ? s.big : 0), 0);
+    if (!surf.length) return { type: 'none', reasons: ['На макете нет цветных поверхностей, куда можно положить градиент (кнопка и плашки тёмные или серые).'], score: null, surf };
     if (setting !== 'auto') return { type: setting, reasons: [setting === 'none' ? 'Градиент выключен вручную.' : 'Тип градиента выбран вручную.'], score: null, surf };
     let score = 0;
     const ind = ctx.ans.industry || 'transport';

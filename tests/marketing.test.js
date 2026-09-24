@@ -80,7 +80,8 @@ const { chromium } = require(require('child_process').execSync('npm root -g').to
     const before = await px();
     const on = await p.locator('#step .thumb').nth(i).evaluate(n => n.classList.contains('on'));
     await p.locator('#step .thumb').nth(i).click(); await p.waitForTimeout(350);
-    if (!on && await px() === before) ui.push('Эффекты: карточка ' + (i + 1) + ' не изменила превью');
+    const noSurf = await p.locator('#step', { hasText: 'нет цветных поверхностей' }).count();
+    if (!on && await px() === before && !noSurf) ui.push('Эффекты: карточка ' + (i + 1) + ' не изменила превью');
   }
   console.log(ui.length ? 'ОШИБКИ UI:\n' + ui.join('\n') : `Интерфейс: OK (${nThumbs} карточек эффектов/узоров/показа)`);
   if (errs.length) console.log('Ошибки JS:', errs);
