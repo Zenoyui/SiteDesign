@@ -112,7 +112,7 @@ SD.gen = (function () {
     const v = vs[ans.variant] || vs[0];
     const pal = ans.palette ? withDerived(Object.assign({}, ans.palette)) : palette(v);
     const st = styleProps(ans, v);
-    const ctx = { ans, v, pal, st, W, H, T: ans.texts, fx: fxFor(ans), icons: (SD.INDUSTRIES[ans.industry] || SD.INDUSTRIES.transport).icons };
+    const ctx = { ans, v, pal, st, W, H, T: ans.texts, notes: [], fx: fxFor(ans), icons: (SD.INDUSTRIES[ans.industry] || SD.INDUSTRIES.transport).icons };
     ctx.base = Math.min(W, H * 0.75);
     ctx.m = Math.max(6, u.round(ctx.base * 0.08, 1));
 
@@ -122,12 +122,24 @@ SD.gen = (function () {
       let els;
       if (i === 0) {
         // если текст не влез — уменьшаем кегли и собираем заново
-        for (let t = 0, k = 1; t < 12; t++, k *= 0.9) { ctx.fitK = k; ctx.overflow = false; els = front(ctx); if (!ctx.overflow) break; }
+        ctx.drop = new Set();
+        let k = 1;
+        for (let t = 0; t < 30; t++) {
+          ctx.fitK = k; ctx.overflow = false; els = front(ctx);
+          if (!ctx.overflow) break;
+          if (k > 0.62) { k *= 0.92; continue; }
+          // уменьшать дальше некуда — убираем второстепенные блоки
+          const next = DROP_ORDER.find(d => !ctx.drop.has(d) && (d === 'qr' ? ans.opts.qr : d === 'promo' ? ans.opts.promo && ans.texts.promo : ans.mk && ans.mk[d]));
+          if (!next) break;
+          ctx.drop.add(next);
+        }
+        if (ctx.drop.size) ctx.notes.push('Не хватило места, поэтому убрано: ' + [...ctx.drop].map(d => DROP_NAMES[d]).join(', ') + '. Можно выбрать формат побольше или сократить текст.');
+        if (ctx.overflow) ctx.notes.push('Текст не помещается на лицевую сторону даже в минимальном кегле — сократите текст или выберите формат побольше.');
         ctx.fitK = 1;
       } else els = (ans.kind === 'slides' && i === n - 1 && n > 2) ? finale(ctx) : backSide(ctx, i);
       pages.push({ id: u.uid(), name: pageName(ans, i, n), bg: pal.bg, bgRole: 'bg', elements: els });
     }
-    const doc = { w: W, h: H, format: ans.format, orient: ans.orient, pages, dirty: false };
+    const doc = { w: W, h: H, format: ans.format, orient: ans.orient, pages, dirty: false, notes: ctx.notes };
     if (ctx.fx.pattern && ctx.fx.pattern !== 'none') for (const pg of pages) pg.elements.unshift(mkPattern(ctx, ctx.fx.pattern));
     applyEffects(doc, ctx);
     applyPalette(doc, pal);
@@ -139,9 +151,15 @@ SD.gen = (function () {
     return 'Страница ' + (i + 1);
   }
 
+  const SIZE_FLOOR = { title: 12, sub: 8, body: 7.5, cta: 7.5, small: 6.5, promo: 9 };
+  // Что убирать, если не хватает места (от наименее важного)
+  const DROP_ORDER = ['guarantee', 'proof', 'arrow', 'price', 'benefits', 'urgency', 'qr', 'promo'];
+  const DROP_NAMES = { guarantee: 'гарантия', proof: 'отзывы', arrow: 'стрелка', price: 'цена-якорь', benefits: 'выгоды', urgency: 'срочность', qr: 'QR-код', promo: 'бейдж' };
   function sizes(ctx) {
     const b = ctx.base * (ctx.fitK || 1), k = ctx.ans.titleScale || 1;
-    return { title: b * 0.095 * k / PT, sub: b * 0.046 / PT, body: b * 0.033 / PT, cta: b * 0.036 / PT, small: b * 0.027 / PT, promo: b * 0.07 / PT };
+    // нижние пределы кегля для печати: мельче не читается
+    const F = SIZE_FLOOR;
+    return { title: Math.max(F.title, b * 0.095 * k / PT), sub: Math.max(F.sub, b * 0.046 / PT), body: Math.max(F.body, b * 0.033 / PT), cta: Math.max(F.cta, b * 0.036 / PT), small: Math.max(F.small, b * 0.027 / PT), promo: Math.max(F.promo, b * 0.07 / PT) };
   }
 
   function mkTitle(ctx, s, extra) {
@@ -151,10 +169,10 @@ SD.gen = (function () {
     return text(Object.assign({ name: 'Подзаголовок', role: 'subtitle', textKey: 'subtitle', text: ctx.T.subtitle, font: ctx.st.font, weight: ctx.st.sw, size: u.round(s.sub, 1), lh: 1.2, fillRole: 'text', w: ctx.W - ctx.m * 2 }, extra));
   }
   function mkBody(ctx, s, extra) {
-    return text(Object.assign({ name: 'Основной текст', role: 'body', textKey: 'body', text: ctx.T.body, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.body, 1), lh: 1.35, fillRole: 'text', opacity: 0.9, w: ctx.W - ctx.m * 2 }, extra));
+    return text(Object.assign({ name: 'Основной текст', role: 'body', textKey: 'body', text: ctx.T.body, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.body, 1), lh: 1.35, fillRole: 'text', w: ctx.W - ctx.m * 2 }, extra));
   }
   function mkSmall(ctx, s, key, extra) {
-    return text(Object.assign({ name: 'Контакты', role: 'contacts', textKey: key || 'contacts', text: ctx.T[key || 'contacts'], font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), lh: 1.25, fillRole: 'text', opacity: 0.75, w: ctx.W - ctx.m * 2 }, extra));
+    return text(Object.assign({ name: 'Контакты', role: 'contacts', textKey: key || 'contacts', text: ctx.T[key || 'contacts'], font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), lh: 1.25, fillRole: 'text', w: ctx.W - ctx.m * 2 }, extra));
   }
 
   // Кнопка-призыв: плашка + текст, привязанный к плашке.
@@ -248,7 +266,7 @@ SD.gen = (function () {
   // Цена-якорь: новая крупно, старая зачёркнута
   function mkPrice(ctx, s) {
     const nw = text({ name: 'Новая цена', role: 'price', textKey: 'priceNew', text: ctx.T.priceNew, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.sub * 1.7, 1), lh: 1, fillRole: 'icon', w: 100 });
-    const old = ctx.T.priceOld ? text({ name: 'Старая цена', role: 'priceOld', textKey: 'priceOld', text: ctx.T.priceOld, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.sub, 1), lh: 1, fillRole: 'text', opacity: 0.6, strike: true, w: 100 }) : null;
+    const old = ctx.T.priceOld ? text({ name: 'Старая цена', role: 'priceOld', textKey: 'priceOld', text: ctx.T.priceOld, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.sub, 1), lh: 1, fillRole: 'text', strike: true, w: 100 }) : null;
     const els = old ? [nw, old] : [nw];
     return { group: true, els, h: 0, place(x, y, w, align) {
       const a = SD.render.textWidth(nw) + 0.6, b = old ? SD.render.textWidth(old) + 0.8 : 0, g = old ? nw.size * PT * 0.35 : 0;
@@ -294,7 +312,7 @@ SD.gen = (function () {
       const ic = base({ type: 'icon', name: 'Значок', role: 'icon', icon: heroIcon, iconStyle: ctx.fx.icons, x: x + p, y: y + p, w: isz, h: isz, fillRole: 'icon', fill2Role: 'primary' });
       const big = text({ name: 'Выгода', role: 'cardText', textKey: ctx.T.promo ? 'promo' : 'priceNew', text: ctx.T.promo || ctx.T.priceNew, font: ctx.st.font, weight: ctx.st.tw, size: u.round(Math.min(s.sub * 1.6, chh * 0.28 / PT), 1), lh: 1, fillRole: 'text', x: x + p, w: cw - 2 * p });
       big.y = y + chh - p - big.h;
-      const small = text({ name: 'Пояснение', role: 'cardText', textKey: 'benefit1', text: ctx.T.benefit1, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), lh: 1.2, fillRole: 'text', opacity: 0.7, x: x + p + isz + p * 0.6, w: cw - 3 * p - isz });
+      const small = text({ name: 'Пояснение', role: 'cardText', textKey: 'benefit1', text: ctx.T.benefit1, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), lh: 1.2, fillRole: 'text', x: x + p + isz + p * 0.6, w: cw - 3 * p - isz });
       small.y = y + p + (isz - small.h) / 2;
       for (const e of [ic, big, small]) e.pin = { id: card.id, dx: e.x - x, dy: e.y - y };
       out.push(card, ic, big, small);
@@ -416,7 +434,10 @@ SD.gen = (function () {
     const hh = L.lineH * 0.42;
     const x = title.align === 'center' ? title.x + (title.w - lw) / 2 - 2 : title.align === 'right' ? title.x + title.w - lw - 2 : -3;
     const w = title.align === 'left' ? title.x + lw + 3 - x : lw + 4;
-    return base({ name: 'Маркер', role: 'decor', x, y: title.y + L.lineH * 0.52, w, h: hh, fillRole: 'primary', cons: { h: 'scale', v: 'scale' } });
+    // маркер должен быть светлее/темнее текста, иначе текст на нём пропадёт
+    const tc = ctx.pal[title.fillRole] || ctx.pal.text;
+    const role = ['primary', 'accent', 'extra', 'soft'].filter(r => ctx.pal[r]).sort((a, b) => u.contrast(tc, ctx.pal[b]) - u.contrast(tc, ctx.pal[a]))[0];
+    return base({ name: 'Маркер', role: 'decor', x, y: title.y + L.lineH * 0.52, w, h: hh, fillRole: u.contrast(tc, ctx.pal.primary) >= 3 ? 'primary' : role, cons: { h: 'scale', v: 'scale' } });
   }
   // Цветная плашка за заголовком (приём «Поездочного» стиля).
   function headPanel(ctx, items, pad) {
@@ -429,7 +450,10 @@ SD.gen = (function () {
   function front(ctx) {
     const { ans, W, H, m, st } = ctx;
     const s = sizes(ctx);
-    const o = ans.opts;
+    const mk0 = ans.mk || {}, T = ans.texts;
+    const drop = ctx.drop || new Set();
+    const mk = new Proxy(mk0, { get: (o, k) => o[k] && !drop.has(k) });
+    const o = Object.assign({}, ans.opts, { qr: ans.opts.qr && !drop.has('qr'), promo: ans.opts.promo && !drop.has('promo') });
     const motifs = o.motif ? ctx.v.motifs.slice() : [];
     const has = k => motifs.includes(k);
     const lay = ans.layout || 'top';
@@ -444,7 +468,6 @@ SD.gen = (function () {
     const title = mkTitle(ctx, s), sub = mkSub(ctx, s), body = mkBody(ctx, s);
     const heads = [title, ans.texts.subtitle ? sub : null].filter(Boolean);
     const bodies = ans.texts.body ? [body] : [];
-    const mk = ans.mk || {}, T = ans.texts;
     const eyebrow = mk.urgency && T.urgency ? mkEyebrow(ctx, s) : null;
     if (eyebrow && lay !== 'diagonal') heads.unshift(eyebrow);
     if (mk.benefits) {
@@ -590,6 +613,8 @@ SD.gen = (function () {
     // Проверка: влез ли текст над нижней строкой
     const bottomMost = Math.max(...mid.filter(e => !e.rot).map(e => e.y + e.h));
     if (bottomMost > limitY + 0.5) ctx.overflow = true;
+    // слово не влезло в строку — уменьшаем кегль, а не рвём слово
+    if (mid.concat(fore).some(e => e.type === 'text' && String(e.text || '').trim() && SD.render.layoutText(e).broken)) ctx.overflow = true;
 
     // Показ продукта (телефон, круг, карточка, наклейка) — в свободной зоне
     const disp = ctx.fx.display;
@@ -646,6 +671,8 @@ SD.gen = (function () {
     const colW = land ? (W - 2 * m) * 0.6 : W - 2 * m;
     let y = m + (motifs.includes('block') ? m * 0.5 : 0);
     y = stack([heading], m, y, colW, 'left', [gap]);
+    for (let g = 0; g < 30 && SD.render.layoutText(heading).broken && heading.size > SIZE_FLOOR.title; g++) { heading.size = u.round(heading.size * 0.93, 1); SD.render.fitHeight(heading); }
+    y = heading.y + heading.h + gap;
     if (motifs.includes('block')) { back.push(headPanel(ctx, [heading], m * 0.45)); y += m * 0.45; }
     if (motifs.includes('stripe')) back.push(marker(ctx, heading));
     const detKey = ans.kind === 'slides' ? 'body' : 'details';
@@ -665,8 +692,12 @@ SD.gen = (function () {
       const q = ctx.base * (land ? 0.3 : 0.24);
       const qr = mkQr(ctx, s, W - m - q, land ? (H - q) / 2 : H - m - q - waveH * 0.6, q)[0];
       els.push(qr);
-      els.push(text({ name: 'Подпись QR', role: 'qrLabel', text: 'Наведите камеру', font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small * 0.9, 1), align: 'center', fillRole: 'text', x: qr.x - 5, y: qr.y + q + 1, w: q + 10, pin: { id: qr.id, dx: -5, dy: q + 1 }, opacity: 0.7 }));
+      els.push(text({ name: 'Подпись QR', role: 'qrLabel', text: 'Наведите камеру', font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), align: 'center', fillRole: 'text', x: qr.x - 5, y: qr.y + q + 1, w: q + 10, pin: { id: qr.id, dx: -5, dy: q + 1 } }));
     }
+    // подгонка: заголовок не рвёт слова, подробности не залезают на контакты и QR
+    const limitB = Math.min(H - m, ...els.filter(e => e.role === 'contacts' || (e.type === 'qr' && !land)).map(e => e.y)) - gap * 0.5;
+    for (let g = 0; g < 40 && (det.y + det.h > limitB || SD.render.layoutText(det).broken) && det.size > SIZE_FLOOR.body; g++) { det.size = u.round(Math.max(SIZE_FLOOR.body, det.size * 0.93), 1); SD.render.fitHeight(det); }
+    if (det.y + det.h > limitB + 0.5) ctx.notes.push('Текст на обороте не помещается — сократите его или выберите формат побольше.');
     // декор в свободном углу
     const z = land ? { x: m + colW + gap, y: m, w: W - colW - 2 * m - gap + m, h: H * 0.4 } : { x: W * 0.55, y: -H * 0.07, w: W * 0.55, h: H * 0.22 };
     for (const k of motifs) {

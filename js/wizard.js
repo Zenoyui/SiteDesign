@@ -561,6 +561,8 @@ SD.wizard = (function () {
     for (const [k, val] of rows) t.append(h('tr', null, h('td', null, k), h('td', null, val)));
     root.append(h('div', { class: 'cap' }, 'Таблица 15. Сводка по макету'), t);
 
+    root.append(SD.panel.lintBox({}));
+    root.append(h('p', { class: 'note' }, 'Перед печатью исправьте ошибки: текст за краем листа срежется, мелкий или бледный текст не прочитают. Нажмите «Показать» — элемент выделится в редакторе.'));
     const o = S.exportOpts;
     const dpi = h('select');
     for (const n of [150, 300, 600]) dpi.append(h('option', { value: n, selected: o.dpi === n }, n + ' dpi' + (n === 300 ? ' (типография)' : n === 150 ? ' (экран, быстрее)' : ' (очень чётко)')));

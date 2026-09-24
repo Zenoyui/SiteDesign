@@ -24,6 +24,7 @@ SD.panel = (function () {
     if (!sel.length) pageProps();
     else if (sel.length === 1) elementProps(sel[0]);
     else multiProps(sel);
+    root.append(lintBox({ page: S.page }));
     root.append(layers());
     root.append(shortcuts());
     if (SD.wizard && SD.wizard.renumber) SD.wizard.renumber();
@@ -303,6 +304,22 @@ SD.panel = (function () {
     return f;
   }
 
+  // Живая проверка текста на текущей странице
+  function lintBox(opts) {
+    const f = document.createDocumentFragment();
+    f.append(h('div', { class: 'cap' }, 'Проверка текста на странице: кегль, контраст, края листа, переносы'));
+    const box = h('div', { id: 'lintBox' });
+    box.append(SD.lint.table(S.doc, i => {
+      const ei = SD.wizard.STEPS.findIndex(x => x.id === 'editor');
+      if (S.step !== ei) SD.wizard.go(ei);
+      if (S.view !== 'edit') SD.views.setView('edit');
+      if (i.page != null && i.page !== S.page) A.setPage(i.page);
+      A.setSel([i.id]); SD.editor.render();
+    }, opts));
+    f.append(box);
+    return f;
+  }
+
   function shortcuts() {
     const rows = [
       ['V / R / O / L / S / K / T / I', 'Выбор, прямоугольник, эллипс, линия, звезда, значок, текст, картинка'],
@@ -334,5 +351,5 @@ SD.panel = (function () {
     if (hl) hl.textContent = u.round(el.h, 1) + ' (авто)';
   }
 
-  return { mount, unmount, refresh, liveGeometry, isMounted: () => !!root };
+  return { mount, unmount, refresh, liveGeometry, lintBox, isMounted: () => !!root };
 })();

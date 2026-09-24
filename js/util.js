@@ -35,7 +35,8 @@ SD.u = {
   // Читаемый цвет текста поверх фона: из кандидатов берём самый контрастный.
   readable(bg, candidates) {
     // Насыщенные тёмные и средние фоны (красный, фиолетовый, зелёный) — белый текст, как принято в брендах
-    if (SD.u.lum(bg) < 0.3 && SD.u.contrast(bg, '#FFFFFF') >= 3) return '#FFFFFF';
+    // белый — если он читается уверенно (от 4.5:1), иначе самый контрастный из вариантов
+    if (SD.u.contrast(bg, '#FFFFFF') >= 4.5) return '#FFFFFF';
     const list = (candidates || []).concat(['#111111', '#FFFFFF']);
     let best = list[0], bc = 0;
     for (const c of list) { const k = SD.u.contrast(bg, c); if (k > bc + 0.01) { bc = k; best = c; } }
