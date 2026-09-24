@@ -518,7 +518,7 @@ SD.wizard = (function () {
     btn.addEventListener('click', async () => {
       btn.disabled = true; bar.style.display = 'block';
       const t0 = performance.now();
-      autoRes = await SD.brain.search(S.answers, { keep: autoKeep, n: 160, seed: 7 + Math.floor(Math.random() * 1000), onProgress: (f, i, n) => { bar.firstChild.style.width = Math.round(f * 100) + '%'; status.textContent = f < 0.8 ? `Смотрю варианты: ${i} из ${n}…` : 'Тщательно проверяю лучших (контраст по пикселям)…'; } });
+      autoRes = await SD.brain.search(S.answers, { keep: autoKeep, n: 300, deep: 20, seed: 7 + Math.floor(Math.random() * 1000), onProgress: (f, i, n) => { bar.firstChild.style.width = Math.round(f * 100) + '%'; status.textContent = f < 0.8 ? `Смотрю варианты: ${i} из ${n}…` : 'Тщательно проверяю лучших (контраст по пикселям)…'; } });
       autoRes.ms = Math.round(performance.now() - t0);
       autoSel = 0; btn.disabled = false; render();
     });

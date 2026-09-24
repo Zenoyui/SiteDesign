@@ -401,6 +401,8 @@ SD.gen = (function () {
     for (const p of doc.pages) for (const el of p.elements) {
       if (!['rect', 'ellipse', 'wave', 'star'].includes(el.type) || !el.fillRole || !['primary', 'accent', 'ctaMax', 'bg', 'soft'].includes(el.fillRole)) continue;
       if (el.role === 'pattern' || el.opacity < 0.5) continue;
+      // почти бесцветным поверхностям (серые подложки) градиент не нужен — будет «грязь»
+      if (SD.color.chroma(ctx.pal[el.fillRole] || '#888888') < 0.05) continue;
       const big = el.w * el.h / A;
       if (['panel', 'card', 'display', 'cta', 'promo'].includes(el.role) || big > 0.04) list.push({ el, big });
     }
@@ -427,16 +429,16 @@ SD.gen = (function () {
     if (ctx.ans.opts.image) { score -= 1; reasons.push('Есть фотография — ей нужен спокойный фон (−1).'); }
     const load = Object.values(ctx.ans.mk || {}).filter(Boolean).length;
     if (load >= 5) { score -= 1; reasons.push(`Включено ${load} приёмов внимания — макет и так насыщен, лишний эффект повышает когнитивную нагрузку (−1).`); }
-    if (forced) { score = Math.max(score, 2); reasons.push('Эффект «Градиент» включён в наборе стиля.'); }
+    if (forced) { score = Math.max(score, 3); reasons.push('Эффект «Градиент всегда» включён в наборе стиля.'); }
     let type = 'none';
-    if (score >= 2) {
+    if (score >= 3) {
       const darkBg = SD.color.lightness(ctx.pal.bg) < 0.45;
       if (darkBg && ['event', 'finance', 'kids', 'beauty'].includes(ind)) type = 'aurora';
       else if (['premium'].includes(ind) || (darkBg && !vivid)) type = 'radial';
       else if (bigArea > 0.12 && vivid) type = 'mesh';
       else type = 'linear';
-      reasons.push(`Итог ${score} ≥ 2 — градиент нужен. Тип: ${GRAD_TYPES[type]}.`);
-    } else reasons.push(`Итог ${score} < 2 — плоский цвет выглядит чище и современнее здесь.`);
+      reasons.push(`Итог ${score} ≥ 3 — градиент нужен. Тип: ${GRAD_TYPES[type]}.`);
+    } else reasons.push(`Итог ${score} < 3 — плоский цвет выглядит чище и современнее здесь.`);
     return { type, reasons, score, surf };
   }
   const GRAD_TYPES = { none: 'без градиента', linear: 'линейный (OKLCH)', radial: 'радиальное свечение', mesh: 'многоточечный (mesh)', aurora: 'аврора с зерном' };
