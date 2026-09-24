@@ -61,14 +61,33 @@ SD.gen = (function () {
     c.extra = c.extra || c.accent;
     return withDerived(c);
   }
+  // Цвет, на котором мелкий текст не читается ни белым, ни чёрным, чуть затемняем/осветляем
+  function inkSafe(col) {
+    let x = col;
+    for (let i = 0; i < 20; i++) {
+      const w = u.contrast(x, '#FFFFFF'), k = u.contrast(x, '#111111');
+      if (Math.max(w, k) >= 4.5) return x;
+      x = u.hueShift(x, 0, 0, w >= k ? -0.02 : 0.02);
+    }
+    return x;
+  }
   function withDerived(c) {
+    c.primaryOrig = c.primary; c.accentOrig = c.accent;
+    c.primary = inkSafe(c.primary); c.accent = inkSafe(c.accent); c.bg = inkSafe(c.bg);
     c.onPrimary = u.readable(c.primary, [c.text, c.bg, '#FFFFFF']);
     c.onAccent = u.readable(c.accent, [c.text, c.bg, '#FFFFFF']);
     // самый контрастный к фону цвет — для кнопки (эффект изоляции)
     c.ctaMax = [c.primary, c.accent, c.extra || c.accent, c.text].sort((a, b) => u.contrast(c.bg, b) - u.contrast(c.bg, a))[0];
     c.onCtaMax = u.readable(c.ctaMax, [c.text, c.bg, '#FFFFFF']);
-    c.primary2 = u.hueShift(c.primary, 28, 0.05, -0.07);
-    c.accent2 = u.hueShift(c.accent, 28, 0.05, -0.07);
+    // второй цвет градиента тоже должен держать контраст с текстом поверх него
+    const grad = (col, on) => {
+      let x = u.hueShift(col, 28, 0.05, -0.07);
+      const dir = u.lum(on) > 0.5 ? -0.03 : 0.03;
+      for (let i = 0; i < 20 && u.contrast(x, on) < 4.5; i++) x = u.hueShift(x, 0, 0, dir);
+      return x;
+    };
+    c.primary2 = grad(c.primary, c.onPrimary);
+    c.accent2 = grad(c.accent, c.onAccent);
     c.icon = u.contrast(c.primary, c.bg) >= 2 ? c.primary : c.text;
     return c;
   }
@@ -151,7 +170,7 @@ SD.gen = (function () {
     return 'Страница ' + (i + 1);
   }
 
-  const SIZE_FLOOR = { title: 12, sub: 8, body: 7.5, cta: 7.5, small: 6.5, promo: 9 };
+  const SIZE_FLOOR = { title: 12, sub: 8, body: 7.5, cta: 7.5, small: 7, promo: 9, promoText: 7 };
   // Что убирать, если не хватает места (от наименее важного)
   const DROP_ORDER = ['guarantee', 'proof', 'arrow', 'price', 'benefits', 'urgency', 'qr', 'promo'];
   const DROP_NAMES = { guarantee: 'гарантия', proof: 'отзывы', arrow: 'стрелка', price: 'цена-якорь', benefits: 'выгоды', urgency: 'срочность', qr: 'QR-код', promo: 'бейдж' };
@@ -196,10 +215,17 @@ SD.gen = (function () {
   function mkPromo(ctx, s, cx, cy, k = 1) {
     const d = ctx.base * 0.25 * k;
     const star = base({ type: 'star', name: 'Бейдж', role: 'promo', x: cx - d / 2, y: cy - d / 2, w: d, h: d, points: 14, inner: 0.86, rot: -12, fillRole: 'accent', cons: { h: 'scale', v: 'scale' } });
-    const t = text({ name: 'Текст бейджа', role: 'promoText', textKey: 'promo', text: ctx.T.promo, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.promo * k * (String(ctx.T.promo).length > 5 ? 0.62 : 1), 1), align: 'center', lh: 1, fillRole: 'onAccent', w: d * 0.8, rot: -12 });
-    for (let i = 0; i < 12 && SD.render.textWidth(t) > t.w * 0.98; i++) t.size = u.round(t.size * 0.9, 1);
+    const t = text({ name: 'Текст бейджа', role: 'promoText', textKey: 'promo', text: ctx.T.promo, font: ctx.st.font, weight: ctx.st.tw, size: u.round(Math.max(SIZE_FLOOR.promoText, s.promo * k * (String(ctx.T.promo).length > 5 ? 0.62 : 1)), 1), align: 'center', lh: 1, fillRole: 'onAccent', w: d * 0.8, rot: -12 });
+    for (let i = 0; i < 12 && SD.render.textWidth(t) > t.w * 0.98 && t.size > SIZE_FLOOR.promoText; i++) t.size = u.round(Math.max(SIZE_FLOOR.promoText, t.size * 0.9), 1);
     SD.render.fitHeight(t);
-    t.x = star.x + d * 0.1; t.y = star.y + (d - t.h) / 2;
+    // не влезло даже мелко — текст в две строки, а звезда побольше
+    if (SD.render.layoutText(t).broken || t.h > d * 0.62) {
+      const need = Math.max(t.h / 0.6, d);
+      star.w = star.h = need; star.x = cx - need / 2; star.y = cy - need / 2;
+      t.w = need * 0.8; SD.render.fitHeight(t);
+    }
+    const d2 = star.w;
+    t.x = star.x + d2 * 0.1; t.y = star.y + (d2 - t.h) / 2;
     t.pin = { id: star.id, dx: t.x - star.x, dy: t.y - star.y };
     return [star, t];
   }
@@ -377,6 +403,13 @@ SD.gen = (function () {
 
   // ---------- Мотивы стилей (все — обычные редактируемые элементы) ----------
   function motif(ctx, kind, z, roles) {
+    const out = motifRaw(ctx, kind, z, roles);
+    // декор не выходит из своей зоны влево — туда, где текст
+    if (z && kind !== 'wave' && kind !== 'stripe') for (const e of out) if (e.x < z.x) e.x = z.x;
+    if (z && kind === 'bigdot' && out.length === 2 && out[1].x < z.x) { const [dot, dash] = out; dash.x = dot.x; dash.y = dot.y + dot.h + dash.h; dash.w = Math.min(dash.w, dot.w); }
+    return out;
+  }
+  function motifRaw(ctx, kind, z, roles) {
     roles = roles || {};
     const main = roles.main || 'primary', second = roles.second || 'accent';
     const out = [];
@@ -461,7 +494,7 @@ SD.gen = (function () {
     const back = [], mid = [], fore = [];
     const gap = m * 0.5;
     const waveH = has('wave') ? H * 0.16 : 0;
-    const bottomLimit = H - m - (waveH ? waveH * 0.55 : 0);
+    const bottomLimit = waveH ? H - waveH * 1.35 - gap * 0.3 : H - m;
     let zone = null, zoneRoles = null, promoAt = null, limitY = H;
     const pd = ctx.base * 0.25;
 
@@ -591,7 +624,7 @@ SD.gen = (function () {
     } else { // diagonal
       const bigS = Object.assign({}, s, { title: s.title * 1.45 });
       const t = mkTitle(ctx, bigS, { align: 'center', upper: true, lh: 1 });
-      t.x = m * 0.5; t.w = W - m; SD.render.fitHeight(t);
+      t.x = m * 0.8; t.w = W - m * 1.6; SD.render.fitHeight(t);
       const cy = H * 0.34;
       t.y = cy - t.h / 2; t.rot = -8; t.fillRole = 'onPrimary';
       const pad = t.size * PT * 0.35;
@@ -614,7 +647,8 @@ SD.gen = (function () {
     const bottomMost = Math.max(...mid.filter(e => !e.rot).map(e => e.y + e.h));
     if (bottomMost > limitY + 0.5) ctx.overflow = true;
     // слово не влезло в строку — уменьшаем кегль, а не рвём слово
-    if (mid.concat(fore).some(e => e.type === 'text' && String(e.text || '').trim() && SD.render.layoutText(e).broken)) ctx.overflow = true;
+    if (mid.concat(fore).some(e => { if (e.type !== 'text' || !String(e.text || '').trim()) return false; const L = SD.render.layoutText(e); return L.broken || L.relaxed; })) ctx.overflow = true;
+    if (mid.some(e => !e.rot && e.type === 'text' && e.y < m * 0.4)) ctx.overflow = true;
 
     // Показ продукта (телефон, круг, карточка, наклейка) — в свободной зоне
     const disp = ctx.fx.display;
@@ -646,16 +680,48 @@ SD.gen = (function () {
       // бейдж не должен закрывать текст и кнопку: пробуем несколько мест и размеров
       const d = ctx.base * 0.25;
       const obstacles = mid.filter(e => e.type === 'text' || ['cta', 'display', 'arrow', 'icon'].includes(e.role) || e.type === 'phone').concat(fore.filter(e => e.type === 'qr' || e.type === 'text')).map(u.aabb);
-      const cands = [promoAt || [W - m - d * 0.4, m + d * 0.4], [W - m - d * 0.4, m + d * 0.4], [W - m - d * 0.45, limitY - d * 0.55], [W * 0.5, limitY - d * 0.55], [m + d * 0.45, limitY - d * 0.55]];
-      const hits = (cx, cy, dd) => { const b = { x: cx - dd / 2, y: cy - dd / 2, w: dd, h: dd }; return obstacles.reduce((a, o) => a + Math.max(0, Math.min(b.x + b.w, o.x + o.w) - Math.max(b.x, o.x)) * Math.max(0, Math.min(b.y + b.h, o.y + o.h) - Math.max(b.y, o.y)), 0) / (dd * dd); };
+      const cands = [promoAt || [W - m - d * 0.4, m + d * 0.4], [W - m - d * 0.4, m + d * 0.4], [W - m - d * 0.45, limitY - d * 0.55], [W * 0.5, limitY - d * 0.55], [m + d * 0.45, limitY - d * 0.55], [m + d * 0.45, m + d * 0.4], [W * 0.5, m + d * 0.4]];
+      const hits = (cx, cy, dd) => {
+        const b = { x: cx - dd / 2, y: cy - dd / 2, w: dd, h: dd };
+        return obstacles.reduce((a, o) => Math.max(a, Math.max(0, Math.min(b.x + b.w, o.x + o.w) - Math.max(b.x, o.x)) * Math.max(0, Math.min(b.y + b.h, o.y + o.h) - Math.max(b.y, o.y)) / Math.max(1, Math.min(dd * dd, o.w * o.h))), 0);
+      };
+      const clampC = (cx, cy, dd) => [u.clamp(cx, m * 0.6 + dd * 0.6, W - m * 0.6 - dd * 0.6), u.clamp(cy, m * 0.6 + dd * 0.6, H - m * 0.6 - dd * 0.6)];
       let best = null;
       for (const k of [1, 0.8, 0.65]) {
-        for (const [cx, cy] of cands) { const ov = hits(cx, cy, d * k * 0.9); if (!best || ov < best.ov - 0.001) best = { cx, cy, k, ov }; if (ov < 0.03) break; }
+        for (const c0 of cands) { const [cx, cy] = clampC(c0[0], c0[1], d * k); const ov = hits(cx, cy, d * k * 0.9); if (!best || ov < best.ov - 0.001) best = { cx, cy, k, ov }; if (ov < 0.03) break; }
         if (best.ov < 0.03) break;
       }
-      fore.push(...mkPromo(ctx, s, best.cx, best.cy, best.k));
+      if (best.ov < 0.03) fore.push(...mkPromo(ctx, s, best.cx, best.cy, best.k));
+      else ctx.notes.push('Бейдж убран: для него не нашлось места, где он не закрывает текст.');
     }
+    avoidDecor(ctx, back, mid.concat(fore));
     return [...back, ...mid, ...fore];
+  }
+
+  // Декор, который сливается с текстом поверх него, уменьшаем и сдвигаем к краю; не помогло — убираем
+  function avoidDecor(ctx, back, front) {
+    const texts = front.filter(e => e.type === 'text' && String(e.text || '').trim()).map(e => ({ e, b: u.aabb(e) }));
+    const col = el => ctx.pal[el.fillRole] || el.fill;
+    const bad = d => {
+      const db = u.aabb(d);
+      return texts.some(({ e, b }) => {
+        const w = Math.min(db.x + db.w, b.x + b.w) - Math.max(db.x, b.x), h = Math.min(db.y + db.h, b.y + b.h) - Math.max(db.y, b.y);
+        if (w <= 0 || h <= 0) return false;
+        const tc = ctx.pal[e.fillRole] || e.fill;
+        const c2 = d.fill2Role ? ctx.pal[d.fill2Role] : d.fill2;
+        return Math.min(u.contrast(tc, col(d)), c2 ? u.contrast(tc, c2) : 99) < 4.5 && (w * h) / (b.w * b.h) > 0.02;
+      });
+    };
+    for (let i = back.length - 1; i >= 0; i--) {
+      const d = back[i];
+      if (d.role !== 'decor' || ['wave', 'pattern'].includes(d.type) || d.w >= ctx.W * 0.95) continue;
+      for (let t = 0; t < 5 && bad(d); t++) {
+        // сжимаем к дальнему от центра листа углу
+        const cx = d.x + d.w / 2 > ctx.W / 2 ? d.x + d.w : d.x, cy = d.y + d.h / 2 > ctx.H / 2 ? d.y + d.h : d.y;
+        d.x = cx + (d.x - cx) * 0.75; d.y = cy + (d.y - cy) * 0.75; d.w *= 0.75; d.h *= 0.75;
+      }
+      if (bad(d)) back.splice(i, 1);
+    }
   }
 
   // ---------- Оборот / внутренние страницы ----------

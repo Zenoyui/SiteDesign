@@ -48,7 +48,8 @@ SD.lint = (function () {
     c.width = Math.ceil(doc.w * s); c.height = Math.ceil(doc.h * s);
     const ctx = c.getContext('2d');
     const hide = new Set(texts.map(t => t.id));
-    SD.render.drawPage(ctx, doc, { bg: page.bg, fx: page.fx, elements: page.elements.filter(e => !hide.has(e.id)) }, s);
+    // зерно печати — текстура, а не цвет: контраст меряем по цветам макета
+    SD.render.drawPage(ctx, doc, { bg: page.bg, elements: page.elements.filter(e => !hide.has(e.id)) }, s);
     const img = ctx.getImageData(0, 0, c.width, c.height).data;
     for (const el of texts) {
       const L = SD.render.layoutText(el);

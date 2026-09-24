@@ -321,6 +321,9 @@ SD.wizard = (function () {
     for (const [c, n, feel, where, careful] of SD.COLOR_PSY) tp.append(h('tr', null, h('td', { class: 'c' }, h('span', { class: 'sw', style: { background: c } })), h('td', null, n), h('td', null, feel), h('td', null, where), h('td', null, careful)));
     root.append(h('div', { class: 'cap' }, 'Таблица 9. Психология цвета — справка'), tp);
     root.append(h('p', { class: 'note' }, 'По исследованиям, до 62–90% первого впечатления о товаре складывается из цвета (S. Singh, 2006). Самый любимый цвет в мире — синий (YouGov, 10 стран), но для еды он подавляет аппетит. Правило 60-30-10: 60% фон, 30% основной, 10% акцент.'));
+    if (pal.primaryOrig && (pal.primaryOrig !== pal.primary || pal.accentOrig !== pal.accent)) root.append(h('p', { class: 'warn' },
+      'Оттенок ' + [pal.primaryOrig !== pal.primary ? `основного (${pal.primaryOrig} → ${pal.primary})` : '', pal.accentOrig !== pal.accent ? `акцента (${pal.accentOrig} → ${pal.accent})` : ''].filter(Boolean).join(' и ') +
+      ' чуть изменён: на исходном цвете мелкий текст не читался бы ни белым, ни чёрным (контраст меньше 4,5:1).'));
     const warn = u.contrast(pal.bg, pal.text) < 4.5;
     root.append(h('p', { class: 'note' }, `Контраст текста и фона: ${u.round(u.contrast(pal.bg, pal.text), 1)} : 1 ${warn ? '— маловато, текст может плохо читаться (желательно от 4,5).' : '— хорошо читается.'}`));
   }
