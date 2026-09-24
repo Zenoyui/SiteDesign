@@ -187,6 +187,11 @@ SD.wizard = (function () {
       t.append(tr);
     }
     root.append(h('div', { class: 'cap' }, 'Таблица 6. Анализ стилей'), t);
+    const cur = A.variant();
+    const part = (label, id) => id ? `${label} — ${SD.STYLES[id].name}` : null;
+    root.append(h('p', { class: 'note' }, S.answers.styles.length > 1
+      ? 'Сейчас в превью: ' + [part('цвета', cur.colorsFrom), part('акцент', cur.accentFrom), part('доп. цвет', cur.extraFrom), part('шрифт', cur.fontFrom), 'декор — ' + (cur.motifFrom || []).map(x => SD.STYLES[x].name).join(', ')].filter(Boolean).join('; ') + '. Другие сочетания — на следующем шаге.'
+      : 'Выбран один стиль. Отметьте ещё один или несколько — они смешаются.'));
     root.append(h('div', { class: 'btn-row' },
       h('button', { class: 'btn sm', onclick: () => { S.answers.styles = SD.STYLE_ORDER.slice(); S.answers.variant = 0; S.answers.palette = null; A.regenerate(); render(); } }, 'Выбрать все'),
       h('button', { class: 'btn sm', onclick: () => { S.answers.styles = [S.answers.styles[0] || 'yandex']; S.answers.variant = 0; S.answers.palette = null; A.regenerate(); render(); } }, 'Оставить один')));

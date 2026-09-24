@@ -10,14 +10,34 @@ SD.gen = (function () {
     const S = (styles && styles.length ? styles : ['yandex']).filter(s => SD.STYLES[s]);
     const out = [];
     const nm = id => SD.STYLES[id].name;
-    for (const s of S) out.push({ key: s, title: nm(s), colorsFrom: s, fontFrom: s, motifs: [SD.STYLES[s].motif], invert: false });
-    for (let i = 0; i < S.length; i++) for (let j = 0; j < S.length; j++) if (i !== j && out.length < 12) {
+    const mot = id => SD.STYLES[id].motif;
+    // Первым идёт смесь ВСЕХ выбранных стилей — её и видно в превью сразу после выбора.
+    if (S.length >= 2) out.push(mixAll(S));
+    for (let i = 0; i < S.length; i++) for (let j = 0; j < S.length; j++) if (i !== j && S.length > 2 && out.length < 10) {
       const a = S[i], b = S[j];
-      out.push({ key: a + '+' + b, title: nm(a) + ' × ' + nm(b), colorsFrom: a, accentFrom: b, fontFrom: b, motifs: [SD.STYLES[a].motif, SD.STYLES[b].motif], invert: false });
+      out.push({ key: a + '+' + b, title: nm(a) + ' × ' + nm(b), colorsFrom: a, accentFrom: b, fontFrom: b, motifs: [mot(a), mot(b)], motifFrom: [a, b], invert: false });
     }
-    if (S.length >= 3) out.push({ key: 'all', title: 'Всё сразу', colorsFrom: S[0], accentFrom: S[1], fontFrom: S[2], motifs: S.slice(0, 3).map(s => SD.STYLES[s].motif), invert: false });
-    for (const s of S) if (out.length < 14) out.push({ key: s + '!inv', title: nm(s) + ', тёмный фон', colorsFrom: s, fontFrom: s, motifs: [SD.STYLES[s].motif], invert: true });
+    if (S.length === 2) {
+      const [a, b] = S;
+      out.push({ key: b + '+' + a, title: nm(b) + ' × ' + nm(a), colorsFrom: b, accentFrom: a, fontFrom: a, motifs: [mot(b), mot(a)], motifFrom: [b, a], invert: false });
+    }
+    for (const s of S) out.push({ key: s, title: nm(s) + ' (только он)', colorsFrom: s, fontFrom: s, motifs: [mot(s)], motifFrom: [s], invert: false });
+    if (S.length >= 2) out.push(Object.assign(mixAll(S), { key: 'mix!inv', title: 'Смесь, цветной фон', invert: true }));
+    for (const s of S) if (out.length < 16) out.push({ key: s + '!inv', title: nm(s) + ', цветной фон', colorsFrom: s, fontFrom: s, motifs: [mot(s)], motifFrom: [s], invert: true });
     return out;
+  }
+  // Каждый выбранный стиль что-то вносит: цвета, акцент, доп. цвет, шрифт или декор.
+  function mixAll(S) {
+    const n = S.length, nm = id => SD.STYLES[id].name;
+    const v = { key: 'mix', title: 'Смесь: ' + S.map(nm).join(' + '), colorsFrom: S[0], accentFrom: S[1], fontFrom: S[n - 1], invert: false };
+    if (n >= 4) v.extraFrom = S[2];
+    const used = new Set([v.colorsFrom, v.accentFrom, v.fontFrom, v.extraFrom]);
+    const rest = S.filter(s => !used.has(s));
+    const from = rest.concat(S.filter(s => !rest.includes(s))).slice(0, 3);
+    // один и тот же мотив дважды не рисуем
+    v.motifFrom = []; v.motifs = [];
+    for (const s of from) { const m = SD.STYLES[s].motif; if (!v.motifs.includes(m)) { v.motifs.push(m); v.motifFrom.push(s); } }
+    return v;
   }
 
   function palette(v) {
@@ -28,6 +48,7 @@ SD.gen = (function () {
       c.accent = u.contrast(o.primary, c.primary) > 1.4 ? o.primary : o.accent;
       if (!c.extra) c.extra = o.accent;
     }
+    if (v.extraFrom) c.extra = SD.STYLES[v.extraFrom].colors.primary;
     if (v.invert) {
       const bg = c.primary;
       const cands = [c.accent, c.text, '#FFFFFF'].sort((a, b) => u.contrast(bg, b) - u.contrast(bg, a));
