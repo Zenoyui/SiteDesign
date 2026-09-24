@@ -64,6 +64,12 @@ SD.gen = (function () {
   function withDerived(c) {
     c.onPrimary = u.readable(c.primary, [c.text, c.bg, '#FFFFFF']);
     c.onAccent = u.readable(c.accent, [c.text, c.bg, '#FFFFFF']);
+    // самый контрастный к фону цвет — для кнопки (эффект изоляции)
+    c.ctaMax = [c.primary, c.accent, c.extra || c.accent, c.text].sort((a, b) => u.contrast(c.bg, b) - u.contrast(c.bg, a))[0];
+    c.onCtaMax = u.readable(c.ctaMax, [c.text, c.bg, '#FFFFFF']);
+    c.primary2 = u.hueShift(c.primary, 28, 0.05, -0.07);
+    c.accent2 = u.hueShift(c.accent, 28, 0.05, -0.07);
+    c.icon = u.contrast(c.primary, c.bg) >= 2 ? c.primary : c.text;
     return c;
   }
 
@@ -106,7 +112,7 @@ SD.gen = (function () {
     const v = vs[ans.variant] || vs[0];
     const pal = ans.palette ? withDerived(Object.assign({}, ans.palette)) : palette(v);
     const st = styleProps(ans, v);
-    const ctx = { ans, v, pal, st, W, H, T: ans.texts };
+    const ctx = { ans, v, pal, st, W, H, T: ans.texts, fx: fxFor(ans), icons: (SD.INDUSTRIES[ans.industry] || SD.INDUSTRIES.transport).icons };
     ctx.base = Math.min(W, H * 0.75);
     ctx.m = Math.max(6, u.round(ctx.base * 0.08, 1));
 
@@ -116,12 +122,14 @@ SD.gen = (function () {
       let els;
       if (i === 0) {
         // если текст не влез — уменьшаем кегли и собираем заново
-        for (let t = 0, k = 1; t < 6; t++, k *= 0.9) { ctx.fitK = k; ctx.overflow = false; els = front(ctx); if (!ctx.overflow) break; }
+        for (let t = 0, k = 1; t < 12; t++, k *= 0.9) { ctx.fitK = k; ctx.overflow = false; els = front(ctx); if (!ctx.overflow) break; }
         ctx.fitK = 1;
       } else els = (ans.kind === 'slides' && i === n - 1 && n > 2) ? finale(ctx) : backSide(ctx, i);
       pages.push({ id: u.uid(), name: pageName(ans, i, n), bg: pal.bg, bgRole: 'bg', elements: els });
     }
     const doc = { w: W, h: H, format: ans.format, orient: ans.orient, pages, dirty: false };
+    if (ctx.fx.pattern && ctx.fx.pattern !== 'none') for (const pg of pages) pg.elements.unshift(mkPattern(ctx, ctx.fx.pattern));
+    applyEffects(doc, ctx);
     applyPalette(doc, pal);
     return doc;
   }
@@ -152,7 +160,7 @@ SD.gen = (function () {
   // Кнопка-призыв: плашка + текст, привязанный к плашке.
   function mkCta(ctx, s, x, y, colW, align, role) {
     role = role || ctx.st.ctaRole;
-    const onRole = role === 'accent' ? 'onAccent' : role === 'text' ? 'bg' : 'onPrimary';
+    const onRole = role === 'accent' ? 'onAccent' : role === 'text' ? 'bg' : role === 'ctaMax' ? 'onCtaMax' : 'onPrimary';
     const t = text({ name: 'Текст кнопки', role: 'ctaText', textKey: 'cta', text: ctx.T.cta, font: ctx.st.font, weight: ctx.st.sw, size: u.round(s.cta, 1), align: 'center', lh: 1.1, fillRole: onRole, w: 400 });
     const tw = Math.min(SD.render.textWidth(t) + 0.6, colW - 6);
     t.w = tw; SD.render.fitHeight(t);
@@ -167,10 +175,10 @@ SD.gen = (function () {
     return [btn, t];
   }
 
-  function mkPromo(ctx, s, cx, cy) {
-    const d = ctx.base * 0.25;
+  function mkPromo(ctx, s, cx, cy, k = 1) {
+    const d = ctx.base * 0.25 * k;
     const star = base({ type: 'star', name: 'Бейдж', role: 'promo', x: cx - d / 2, y: cy - d / 2, w: d, h: d, points: 14, inner: 0.86, rot: -12, fillRole: 'accent', cons: { h: 'scale', v: 'scale' } });
-    const t = text({ name: 'Текст бейджа', role: 'promoText', textKey: 'promo', text: ctx.T.promo, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.promo * (String(ctx.T.promo).length > 5 ? 0.62 : 1), 1), align: 'center', lh: 1, fillRole: 'onAccent', w: d * 0.8, rot: -12 });
+    const t = text({ name: 'Текст бейджа', role: 'promoText', textKey: 'promo', text: ctx.T.promo, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.promo * k * (String(ctx.T.promo).length > 5 ? 0.62 : 1), 1), align: 'center', lh: 1, fillRole: 'onAccent', w: d * 0.8, rot: -12 });
     for (let i = 0; i < 12 && SD.render.textWidth(t) > t.w * 0.98; i++) t.size = u.round(t.size * 0.9, 1);
     SD.render.fitHeight(t);
     t.x = star.x + d * 0.1; t.y = star.y + (d - t.h) / 2;
@@ -189,12 +197,165 @@ SD.gen = (function () {
 
   function stack(items, x, y, w, align, gaps) {
     items.forEach((el, i) => {
+      const g = gaps[i] != null ? gaps[i] : (gaps.length ? gaps[gaps.length - 1] : 0);
+      if (el.group) { el.place(x, y, w, align); y += el.h + g; return; }
       el.x = x; el.y = y; el.w = w; el.align = align;
       SD.render.fitHeight(el);
-      y += el.h + (gaps[i] || 0);
+      y += el.h + g;
     });
     return y;
   }
+  function flat(list) { return list.flatMap(e => e.group ? e.els : [e]); }
+
+  // ---------- Приёмы внимания ----------
+  // Плашка срочности над заголовком
+  function mkEyebrow(ctx, s) {
+    const role = u.contrast(ctx.pal.accent, ctx.pal.bg) >= 1.5 ? 'accent' : 'primary';
+    const size = u.round(s.small * 1.1, 1), pad = size * PT;
+    return text({ name: 'Срочность', role: 'urgency', textKey: 'urgency', text: ctx.T.urgency, font: ctx.st.font, weight: ctx.st.sw, size,
+      fillRole: role === 'accent' ? 'onAccent' : 'onPrimary', keepColor: true, lh: 1.15,
+      bg: { fillRole: role, padX: pad * 0.75, padY: pad * 0.38, radius: ctx.st.pill ? null : ctx.st.radiusK * 30 } });
+  }
+  // Строки «значок + текст» (выгоды, отзывы, гарантия)
+  function mkRows(ctx, sizePt, rows, weight) {
+    const isz = sizePt * PT * 1.7, g = isz * 0.45, rg = isz * 0.3;
+    const els = [];
+    const items = rows.map(r => {
+      const ic = base({ type: 'icon', name: 'Значок', role: 'icon', icon: r.icon, iconStyle: ctx.fx.icons, w: isz, h: isz, fillRole: 'icon', fill2Role: 'primary' });
+      const t = text({ name: r.name || 'Строка', role: r.role || 'row', textKey: r.key, text: ctx.T[r.key], font: ctx.st.font, weight: weight || ctx.st.bw, size: u.round(sizePt, 1), lh: 1.2, fillRole: 'text', w: 50 });
+      els.push(ic, t);
+      return { ic, t };
+    });
+    const grp = { group: true, els, h: 0, place(x, y, w, align) {
+      let maxW = 0;
+      items.forEach(it => { it.t.w = Math.max(10, w - isz - g); it.t.align = 'left'; maxW = Math.max(maxW, Math.min(it.t.w, SD.render.textWidth(it.t) + 0.8)); });
+      const bw = isz + g + maxW;
+      const x0 = align === 'center' ? x + (w - bw) / 2 : align === 'right' ? x + w - bw : x;
+      let yy = y;
+      items.forEach(it => {
+        it.t.w = maxW; SD.render.fitHeight(it.t);
+        const rh = Math.max(isz, it.t.h);
+        it.ic.x = x0; it.ic.y = yy + (rh - isz) / 2;
+        it.t.x = x0 + isz + g; it.t.y = yy + (rh - it.t.h) / 2;
+        it.t.pin = { id: it.ic.id, dx: it.t.x - it.ic.x, dy: it.t.y - it.ic.y };
+        yy += rh + rg;
+      });
+      this.h = yy - rg - y;
+    } };
+    grp.place(0, 0, ctx.W - 2 * ctx.m, 'left');
+    return grp;
+  }
+  // Цена-якорь: новая крупно, старая зачёркнута
+  function mkPrice(ctx, s) {
+    const nw = text({ name: 'Новая цена', role: 'price', textKey: 'priceNew', text: ctx.T.priceNew, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.sub * 1.7, 1), lh: 1, fillRole: 'icon', w: 100 });
+    const old = ctx.T.priceOld ? text({ name: 'Старая цена', role: 'priceOld', textKey: 'priceOld', text: ctx.T.priceOld, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.sub, 1), lh: 1, fillRole: 'text', opacity: 0.6, strike: true, w: 100 }) : null;
+    const els = old ? [nw, old] : [nw];
+    return { group: true, els, h: 0, place(x, y, w, align) {
+      const a = SD.render.textWidth(nw) + 0.6, b = old ? SD.render.textWidth(old) + 0.8 : 0, g = old ? nw.size * PT * 0.35 : 0;
+      nw.w = a; nw.align = 'left'; SD.render.fitHeight(nw);
+      const tot = a + g + b;
+      const x0 = align === 'center' ? x + (w - tot) / 2 : align === 'right' ? x + w - tot : x;
+      nw.x = x0; nw.y = y;
+      if (old) { old.w = b; old.align = 'left'; SD.render.fitHeight(old); old.x = x0 + a + g; old.y = y + nw.h - old.h - nw.h * 0.05; old.pin = { id: nw.id, dx: old.x - nw.x, dy: old.y - nw.y }; }
+      this.h = nw.h;
+    } };
+  }
+  // Стрелка, указывающая на кнопку
+  function mkArrow(ctx, btn, align) {
+    const sz = btn.h * 1.35;
+    let x = btn.x + btn.w + sz * 0.15, flip = false;
+    if (align === 'right' || x + sz > ctx.W - ctx.m * 0.3) { x = btn.x - sz * 1.15; flip = true; }
+    if (x < ctx.m * 0.2) return null;
+    const a = base({ type: 'icon', name: 'Стрелка', role: 'arrow', icon: 'arrowCurve', iconStyle: 'bold', x, y: btn.y - sz * 0.62, w: sz, h: sz, flipX: flip, fillRole: 'text' });
+    a.pin = { id: btn.id, dx: a.x - btn.x, dy: a.y - btn.y };
+    return a;
+  }
+
+  // ---------- Показ продукта ----------
+  function mkDisplay(ctx, kind, z, s) {
+    const out = [];
+    const heroIcon = (SD.INDUSTRIES[ctx.ans.industry] || SD.INDUSTRIES.transport).hero;
+    if (kind === 'phone') {
+      let ph = Math.min(z.h * 0.96, z.w * 0.62 * 2.05), pw = ph / 2.05;
+      out.push(base({ type: 'phone', name: 'Телефон', role: 'display', x: z.x + (z.w - pw) / 2, y: z.y + (z.h - ph) / 2, w: pw, h: ph, fillRole: 'soft', fill2Role: 'ctaMax', radius: 0 }));
+    } else if (kind === 'circle') {
+      const d = Math.min(z.w, z.h) * 0.88, x = z.x + (z.w - d) / 2, y = z.y + (z.h - d) / 2;
+      if (ctx.ans.opts.image) out.push(Object.assign(mkImage(ctx, { x, y, w: d, h: d }, d / 2), { role: 'display' }));
+      else {
+        const c = base({ type: 'ellipse', name: 'Круг', role: 'display', x, y, w: d, h: d, fillRole: 'primary' });
+        const ic = base({ type: 'icon', name: 'Значок', role: 'heroIcon', icon: heroIcon, iconStyle: 'line', x: x + d * 0.22, y: y + d * 0.22, w: d * 0.56, h: d * 0.56, fillRole: 'onPrimary' });
+        ic.pin = { id: c.id, dx: d * 0.22, dy: d * 0.22 };
+        out.push(c, ic);
+      }
+    } else if (kind === 'card') {
+      const cw = Math.min(z.w * 0.9, z.h * 1.5), chh = Math.min(z.h * 0.9, cw * 0.7), x = z.x + (z.w - cw) / 2, y = z.y + (z.h - chh) / 2;
+      const card = base({ name: 'Карточка', role: 'display', x, y, w: cw, h: chh, radius: ctx.st.radiusK * 90 + 1, fillRole: u.lum(ctx.pal.bg) > 0.8 ? 'soft' : 'bg' });
+      const isz = chh * 0.3, p = chh * 0.12;
+      const ic = base({ type: 'icon', name: 'Значок', role: 'icon', icon: heroIcon, iconStyle: ctx.fx.icons, x: x + p, y: y + p, w: isz, h: isz, fillRole: 'icon', fill2Role: 'primary' });
+      const big = text({ name: 'Выгода', role: 'cardText', textKey: ctx.T.promo ? 'promo' : 'priceNew', text: ctx.T.promo || ctx.T.priceNew, font: ctx.st.font, weight: ctx.st.tw, size: u.round(Math.min(s.sub * 1.6, chh * 0.28 / PT), 1), lh: 1, fillRole: 'text', x: x + p, w: cw - 2 * p });
+      big.y = y + chh - p - big.h;
+      const small = text({ name: 'Пояснение', role: 'cardText', textKey: 'benefit1', text: ctx.T.benefit1, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), lh: 1.2, fillRole: 'text', opacity: 0.7, x: x + p + isz + p * 0.6, w: cw - 3 * p - isz });
+      small.y = y + p + (isz - small.h) / 2;
+      for (const e of [ic, big, small]) e.pin = { id: card.id, dx: e.x - x, dy: e.y - y };
+      out.push(card, ic, big, small);
+    } else if (kind === 'hero') {
+      const d = Math.min(z.w, z.h) * 0.78, x = z.x + (z.w - d) / 2, y = z.y + (z.h - d) / 2;
+      const sq = base({ name: 'Наклейка', role: 'display', x, y, w: d, h: d, rot: -6, radius: d * 0.24, fillRole: 'accent', stroke: '#FFFFFF', strokeW: d * 0.04 });
+      const ic = base({ type: 'icon', name: 'Значок', role: 'heroIcon', icon: heroIcon, iconStyle: 'bold', rot: -6, x: x + d * 0.2, y: y + d * 0.2, w: d * 0.6, h: d * 0.6, fillRole: 'onAccent' });
+      ic.pin = { id: sq.id, dx: d * 0.2, dy: d * 0.2 };
+      out.push(sq, ic);
+    }
+    return out;
+  }
+
+  // ---------- Эффекты ----------
+  function applyEffects(doc, ctx) {
+    const E = new Set(ctx.fx.effects || []), b = ctx.base, pal = ctx.pal;
+    for (const p of doc.pages) {
+      p.fx = { grain: E.has('grain') ? 0.4 : 0 };
+      for (const el of p.elements) {
+        const lifted = ['cta', 'promo', 'image', 'display', 'panel', 'card'].includes(el.role);
+        if (E.has('glass') && ['panel', 'card'].includes(el.role)) {
+          const light = u.lum(pal.bg) > 0.6;
+          el.fillRole = light ? 'primary' : null; el.fill = '#FFFFFF'; el.opacity = light ? 0.22 : 0.16;
+          el.stroke = '#FFFFFF'; el.strokeW = b * 0.006;
+          for (const id of el.panelFor || []) { const t = p.elements.find(e => e.id === id); if (t) t.fillRole = 'text'; }
+        }
+        if (E.has('shadow') && lifted) el.shadow = { x: 0, y: b * 0.008, blur: b * 0.035, color: '#000000', alpha: 0.2 };
+        // вместе с мягкой тенью жёсткая достаётся только кнопке и бейджу — так видны обе
+        if (E.has('hardShadow') && (E.has('shadow') ? ['cta', 'promo'].includes(el.role) : lifted)) el.shadow = { x: b * 0.012, y: b * 0.012, blur: 0, colorRole: 'text', alpha: 1 };
+        if (E.has('glow') && (el.role === 'cta' || el.role === 'promo')) el.shadow = { x: 0, y: 0, blur: b * 0.06, colorRole: el.fillRole || 'primary', alpha: 0.75 };
+        if (E.has('gradient') && ['rect', 'ellipse', 'star', 'wave'].includes(el.type) && !el.fill2Role && (el.fillRole === 'primary' || el.fillRole === 'accent')) {
+          el.fill2Role = el.fillRole + '2'; el.gradAngle = 120;
+        }
+        if (E.has('sticker') && ['promo', 'cta', 'image', 'display'].includes(el.role) && el.type !== 'text') {
+          el.stroke = '#FFFFFF'; el.strokeRole = null; el.strokeW = b * 0.014;
+          if (!el.shadow) el.shadow = { x: 0, y: b * 0.004, blur: b * 0.015, color: '#000000', alpha: 0.25 };
+        }
+        if (E.has('tilt')) {
+          if (el.role === 'cta' || el.role === 'ctaText') el.rot = (el.rot || 0) - 3;
+          if (el.role === 'panel' || el.role === 'card') el.rot = (el.rot || 0) - 2;
+          if (el.role === 'urgency') el.rot = (el.rot || 0) - 3;
+        }
+      }
+    }
+  }
+  function mkPattern(ctx, kind) {
+    const lowC = u.contrast(ctx.pal.primary, ctx.pal.bg) < 1.6;
+    const cellK = { grid: 0.07, checker: 0.05, stripes: 0.05, confetti: 0.06, halftone: 0.05, dots: 0.045 }[kind] || 0.05;
+    const useText = kind === 'checker' || kind === 'grid' || lowC;
+    return base({ type: 'pattern', name: 'Узор', role: 'pattern', kind, cell: u.round(ctx.base * cellK, 2), seed: 11, x: 0, y: 0, w: ctx.W, h: ctx.H,
+      fillRole: useText ? 'text' : 'primary', fill2Role: 'accent', opacity: useText ? 0.07 : 0.16, locked: true, cons: { h: 'left-right', v: 'top-bottom' } });
+  }
+  function fxFor(ans) {
+    if (ans.fx && !ans.fx.auto) return ans.fx;
+    const S = ans.styles && ans.styles.length ? ans.styles : ['yandex'];
+    const k0 = SD.KITS[S[0]], k1 = S[1] ? SD.KITS[S[1]] : null;
+    const eff = k0.effects.slice();
+    if (k1 && k1.effects[0] && !eff.includes(k1.effects[0])) eff.push(k1.effects[0]);
+    return { auto: true, effects: eff, icons: k0.icons, pattern: 'none', display: 'none' };
+  }
+
 
   // ---------- Мотивы стилей (все — обычные редактируемые элементы) ----------
   function motif(ctx, kind, z, roles) {
@@ -212,7 +373,7 @@ SD.gen = (function () {
       }
       case 'block': {
         const r = Math.min(z.w, z.h) * 0.12;
-        out.push(base({ name: 'Карточка', role: 'decor', x: z.x, y: z.y, w: z.w, h: z.h, radius: r, fillRole: 'soft' }));
+        out.push(base({ name: 'Карточка', role: 'card', x: z.x, y: z.y, w: z.w, h: z.h, radius: r, fillRole: 'soft' }));
         const d = d0 * 0.42;
         out.push(base({ name: 'Плашка', role: 'decor', x: z.x + z.w * 0.08, y: z.y + z.h - d * 0.55 - z.h * 0.12, w: z.w * 0.84, h: d * 0.55, radius: d * 0.275, fillRole: main }));
         out.push(base({ type: 'ellipse', name: 'Точка', role: 'decor', x: z.x + z.w * 0.08, y: z.y + z.h * 0.14, w: d * 0.5, h: d * 0.5, fillRole: second }));
@@ -260,8 +421,8 @@ SD.gen = (function () {
   // Цветная плашка за заголовком (приём «Поездочного» стиля).
   function headPanel(ctx, items, pad) {
     const b = u.unionBox(items.map(e => ({ x: e.x, y: e.y, w: e.w, h: e.h })));
-    items.forEach(e => { e.fillRole = 'onPrimary'; });
-    return base({ name: 'Плашка заголовка', role: 'decor', x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2, radius: ctx.st.radiusK * 90, fillRole: 'primary' });
+    items.forEach(e => { if (!e.keepColor) e.fillRole = 'onPrimary'; });
+    return base({ name: 'Плашка заголовка', role: 'panel', panelFor: items.filter(e => !e.keepColor).map(e => e.id), x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2, radius: ctx.st.radiusK * 90, fillRole: 'primary' });
   }
 
   // ---------- Лицевая сторона ----------
@@ -283,6 +444,33 @@ SD.gen = (function () {
     const title = mkTitle(ctx, s), sub = mkSub(ctx, s), body = mkBody(ctx, s);
     const heads = [title, ans.texts.subtitle ? sub : null].filter(Boolean);
     const bodies = ans.texts.body ? [body] : [];
+    const mk = ans.mk || {}, T = ans.texts;
+    const eyebrow = mk.urgency && T.urgency ? mkEyebrow(ctx, s) : null;
+    if (eyebrow && lay !== 'diagonal') heads.unshift(eyebrow);
+    if (mk.benefits) {
+      const rows = [1, 2, 3].map(i => ({ icon: ctx.icons[i - 1], key: 'benefit' + i, name: 'Выгода ' + i, role: 'benefit' })).filter(r => T[r.key]);
+      if (rows.length) bodies.push(mkRows(ctx, s.body, rows, ctx.st.sw));
+    }
+    if (mk.price && T.priceNew) bodies.push(mkPrice(ctx, s));
+    // кнопка + стрелка + строки доверия
+    function ctaBlock(x, y, colW, al) {
+      const els = [];
+      let end = y;
+      if (o.cta && T.cta) {
+        const c = mkCta(ctx, s, x, y, colW, al, mk.contrastCta ? 'ctaMax' : undefined);
+        els.push(...c); end = y + c[0].h;
+        if (mk.arrow) { const a = mkArrow(ctx, c[0], al); if (a) els.push(a); }
+      }
+      const rows = [];
+      if (mk.proof && T.proof) rows.push({ icon: 'star', key: 'proof', name: 'Отзывы', role: 'proof' });
+      if (mk.guarantee && T.guarantee) rows.push({ icon: 'shield', key: 'guarantee', name: 'Гарантия', role: 'guarantee' });
+      if (rows.length) {
+        const g = mkRows(ctx, s.small, rows);
+        const yy = els.length ? end + gap * 0.7 : y;
+        g.place(x, yy, colW, al); els.push(...g.els); end = yy + g.h;
+      }
+      return { els, end };
+    }
 
     // Нижняя строка: контакты и QR
     const contacts = o.contacts && ans.texts.contacts ? mkSmall(ctx, s) : null;
@@ -319,9 +507,9 @@ SD.gen = (function () {
       let y = stack(heads, m, y0, colW, align, [gap * 0.5, gap]);
       if (has('block')) { back.push(headPanel(ctx, heads, m * 0.55)); y += m * 0.55; }
       y = stack(bodies, m, y + gap * 0.3, colW, align, [gap]);
-      let cta = [];
-      if (o.cta && ans.texts.cta) cta = mkCta(ctx, s, m, y, colW, align);
-      const groupEnd = cta.length ? y + cta[0].h : y;
+      const cb = ctaBlock(m, y, colW, align);
+      const cta = cb.els;
+      const groupEnd = cb.end;
       let shift = 0;
       if (lay === 'center' || lay === 'left') {
         const top = o.image && lay === 'center' ? m + H * 0.36 + gap : m;
@@ -329,10 +517,9 @@ SD.gen = (function () {
         shift = Math.max(0, top - m + (avail - (groupEnd - m)) / 2);
         if (has('block') && top === m) shift = Math.max(0, shift - m * 0.3);
       }
-      [...heads, ...bodies, ...cta, ...back].forEach(e => { e.y += shift; });
-      if (cta.length) cta[1].y = cta[0].y + cta[1].pin.dy;
+      flat([...heads, ...bodies]).concat(cta, back).forEach(e => { e.y += shift; });
       if (has('stripe')) back.push(marker(ctx, title));
-      mid.push(...heads, ...bodies, ...cta);
+      mid.push(...flat(heads), ...flat(bodies), ...cta);
       const textEnd = groupEnd + shift;
       if (lay === 'top') promoAt = [W - m - pd * 0.45, textEnd + gap + pd * 0.45];
       if (lay === 'left') promoAt = [W - m - pd * 0.5, m + pd * 0.45];
@@ -350,13 +537,14 @@ SD.gen = (function () {
         zone = { x: zx, y: m, w: W - zx + m * 0.4, h: H - 2 * m - waveH };
       }
     } else if (lay === 'bottom' || lay === 'split') {
-      const topH = H * (lay === 'split' ? 0.5 : 0.42);
+      // картинка сверху уменьшается, если тексту не хватает места
+      const topH = H * (lay === 'split' ? 0.5 : 0.42) * Math.max(0.55, ctx.fitK || 1);
       const topZone = { x: 0, y: 0, w: W, h: topH };
       promoAt = lay === 'split' ? [W - m - pd * 0.4, m + pd * 0.4] : [W - m - pd * 0.45, topH - pd * 0.3];
       let y;
       if (lay === 'split' && !o.image) {
         back.push(base({ name: 'Верхняя зона', role: 'decor', x: 0, y: 0, w: W, h: topH, fillRole: 'primary', cons: { h: 'left-right', v: 'scale' } }));
-        heads.forEach(e => { e.fillRole = 'onPrimary'; });
+        heads.forEach(e => { if (!e.keepColor) e.fillRole = 'onPrimary'; });
         const hh = heads.reduce((a, e) => { e.w = W - 2 * m; SD.render.fitHeight(e); return a + e.h; }, 0) + gap * 0.5;
         stack(heads, m, topH - m * 0.8 - hh, W - 2 * m, align, [gap * 0.5]);
         y = topH + m * 0.8;
@@ -373,8 +561,8 @@ SD.gen = (function () {
       const yBottom = bottomRow(m, W - 2 * m, align);
       limitY = yBottom;
       y = stack(bodies, m, y + gap * 0.3, W - 2 * m, align, [gap]);
-      mid.push(...heads, ...bodies);
-      if (o.cta && ans.texts.cta) mid.push(...mkCta(ctx, s, m, y, W - 2 * m, align));
+      mid.push(...flat(heads), ...flat(bodies));
+      mid.push(...ctaBlock(m, y, W - 2 * m, align).els);
       if (has('stripe') && lay === 'split' && !o.image) zone = { x: 0, y: topH - 5, w: W, h: 10 };
       if (lay === 'split' && zone && has('stripe')) zoneRoles = { main: 'accent', second: 'text' };
     } else { // diagonal
@@ -389,9 +577,10 @@ SD.gen = (function () {
       const yBottom = bottomRow(m, W - 2 * m, 'center');
       limitY = yBottom;
       let y = cy + t.h / 2 + W * 0.09 + m * 0.6;
-      y = stack([ans.texts.subtitle ? sub : null, ...bodies].filter(Boolean), m, y, W - 2 * m, 'center', [gap * 0.6, gap]);
-      mid.push(...[ans.texts.subtitle ? sub : null, ...bodies].filter(Boolean));
-      if (o.cta && ans.texts.cta) mid.push(...mkCta(ctx, s, m, y, W - 2 * m, 'center'));
+      const lower = [eyebrow, ans.texts.subtitle ? sub : null, ...bodies].filter(Boolean);
+      y = stack(lower, m, y, W - 2 * m, 'center', [gap * 0.6, gap]);
+      mid.push(...flat(lower));
+      mid.push(...ctaBlock(m, y, W - 2 * m, 'center').els);
       promoAt = [W - m - pd * 0.45, H * 0.1];
       zone = { x: W * 0.55, y: -H * 0.06, w: W * 0.55, h: H * 0.2 };
       if (!has('wave')) zone = { x: W * 0.55, y: H - H * 0.2, w: W * 0.55, h: H * 0.24 };
@@ -401,6 +590,19 @@ SD.gen = (function () {
     // Проверка: влез ли текст над нижней строкой
     const bottomMost = Math.max(...mid.filter(e => !e.rot).map(e => e.y + e.h));
     if (bottomMost > limitY + 0.5) ctx.overflow = true;
+
+    // Показ продукта (телефон, круг, карточка, наклейка) — в свободной зоне
+    const disp = ctx.fx.display;
+    if (disp && disp !== 'none' && zone && ['top', 'left', 'bottom'].includes(lay) && !(o.image && lay !== 'bottom')) {
+      const vx = Math.max(zone.x, m * 0.5), vy = Math.max(zone.y, m * 0.5);
+      const vz = { x: vx, y: vy, w: Math.min(zone.x + zone.w, W - m * 0.5) - vx, h: Math.min(zone.y + zone.h, limitY) - vy };
+      if (lay === 'top' && vz.w > vz.h * 1.3) { vz.x += vz.w * 0.35; vz.w *= 0.65; }
+      const minSide = Math.min(W, H) * 0.3; // слишком маленький показ не рисуем — будет мусором
+      const fits = k => vz.w > minSide * k * (disp === 'phone' ? 0.5 : 1) && vz.h > minSide * k;
+      if (fits(1) || ((ctx.fitK || 1) < 0.6 && fits(0.55))) mid.push(...mkDisplay(ctx, disp, vz, s));
+      else if ((ctx.fitK || 1) >= 0.6) ctx.overflow = true; // освобождаем место: уменьшаем текст
+      else ctx.displaySkipped = true;
+    }
 
     // Мотивы
     const allowZone = { block: ['top', 'bottom', 'left'], stripe: ['top', 'center', 'bottom', 'split'] };
@@ -416,9 +618,17 @@ SD.gen = (function () {
 
     // Бейдж
     if (o.promo && ans.texts.promo) {
+      // бейдж не должен закрывать текст и кнопку: пробуем несколько мест и размеров
       const d = ctx.base * 0.25;
-      const [cx, cy] = promoAt || [W - m - d * 0.4, m + d * 0.4];
-      fore.push(...mkPromo(ctx, s, cx, cy));
+      const obstacles = mid.filter(e => e.type === 'text' || ['cta', 'display', 'arrow', 'icon'].includes(e.role) || e.type === 'phone').concat(fore.filter(e => e.type === 'qr' || e.type === 'text')).map(u.aabb);
+      const cands = [promoAt || [W - m - d * 0.4, m + d * 0.4], [W - m - d * 0.4, m + d * 0.4], [W - m - d * 0.45, limitY - d * 0.55], [W * 0.5, limitY - d * 0.55], [m + d * 0.45, limitY - d * 0.55]];
+      const hits = (cx, cy, dd) => { const b = { x: cx - dd / 2, y: cy - dd / 2, w: dd, h: dd }; return obstacles.reduce((a, o) => a + Math.max(0, Math.min(b.x + b.w, o.x + o.w) - Math.max(b.x, o.x)) * Math.max(0, Math.min(b.y + b.h, o.y + o.h) - Math.max(b.y, o.y)), 0) / (dd * dd); };
+      let best = null;
+      for (const k of [1, 0.8, 0.65]) {
+        for (const [cx, cy] of cands) { const ov = hits(cx, cy, d * k * 0.9); if (!best || ov < best.ov - 0.001) best = { cx, cy, k, ov }; if (ov < 0.03) break; }
+        if (best.ov < 0.03) break;
+      }
+      fore.push(...mkPromo(ctx, s, best.cx, best.cy, best.k));
     }
     return [...back, ...mid, ...fore];
   }
@@ -489,6 +699,8 @@ SD.gen = (function () {
         if (el.fillRole && pal[el.fillRole]) el.fill = pal[el.fillRole];
         if (el.fill2Role && pal[el.fill2Role]) el.fill2 = pal[el.fill2Role];
         if (el.strokeRole && pal[el.strokeRole]) el.stroke = pal[el.strokeRole];
+        if (el.bg && el.bg.fillRole && pal[el.bg.fillRole]) el.bg.fill = pal[el.bg.fillRole];
+        if (el.shadow && el.shadow.colorRole && pal[el.shadow.colorRole]) el.shadow.color = pal[el.shadow.colorRole];
       }
     }
   }
@@ -511,5 +723,5 @@ SD.gen = (function () {
     }
   }
 
-  return { variants, palette, withDerived, build, applyPalette, applyTexts, base, text, styleProps };
+  return { variants, palette, withDerived, build, applyPalette, applyTexts, base, text, styleProps, fxFor };
 })();

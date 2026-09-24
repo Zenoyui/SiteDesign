@@ -4,11 +4,18 @@ SD.app = (function () {
   const u = SD.u;
   const KEY = 'sitedesign.v1';
 
+  function benefitTexts(ind) {
+    const b = (SD.INDUSTRIES[ind] || SD.INDUSTRIES.transport).benefits;
+    return { benefit1: b[0], benefit2: b[1], benefit3: b[2] };
+  }
   function defaultAnswers() {
     return {
       kind: 'flyer', goal: 'sell', format: 'A6', orient: 'portrait', pages: 1,
       styles: ['go'], variant: 0, palette: null, font: null,
-      texts: Object.assign({ qr: 'https://example.com' }, SD.EXAMPLES.sell),
+      industry: 'transport',
+      texts: Object.assign({ qr: 'https://example.com' }, SD.EXAMPLES.sell, benefitTexts('transport')),
+      mk: { urgency: false, benefits: false, price: false, proof: false, guarantee: false, arrow: false, contrastCta: false },
+      fx: { auto: true, effects: [], icons: 'soft', pattern: 'none', display: 'none' },
       layout: 'top', align: 'left', titleScale: 1,
       opts: { motif: true, cta: true, promo: true, qr: false, contacts: true, image: null, imageFit: 'cover', rounded: 1 }
     };
@@ -71,11 +78,18 @@ SD.app = (function () {
       }
     }, 400);
   }
+  function mergeAnswers(d, a) {
+    a = a || {};
+    return Object.assign(d, a, {
+      opts: Object.assign(d.opts, a.opts || {}), texts: Object.assign(d.texts, a.texts || {}),
+      mk: Object.assign(d.mk, a.mk || {}), fx: Object.assign(d.fx, a.fx || {})
+    });
+  }
   function load() {
     const o = u.store.get(KEY);
     if (!o || !o.answers) return false;
     const d = defaultAnswers();
-    S.answers = Object.assign(d, o.answers, { opts: Object.assign(d.opts, o.answers.opts || {}), texts: Object.assign(d.texts, o.answers.texts || {}) });
+    S.answers = mergeAnswers(d, o.answers);
     S.step = o.step || 0;
     if (o.doc && o.doc.pages) { S.doc = o.doc; S.page = Math.min(o.page || 0, S.doc.pages.length - 1); }
     return true;
@@ -199,7 +213,7 @@ SD.app = (function () {
   return {
     S, on, emit, page, byId, selected, variant, pal, commit, undo, redo, resetHistory,
     regenerate, applySoft, resizeDoc, resolvePins, pinTo, addPage, duplicatePage, deletePage,
-    setPage, setSel, save, load, resetAll, defaultAnswers,
+    setPage, setSel, save, load, resetAll, defaultAnswers, mergeAnswers, benefitTexts,
     canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1
   };
 })();

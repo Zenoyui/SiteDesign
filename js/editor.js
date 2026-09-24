@@ -318,7 +318,7 @@ SD.editor = (function () {
     if (d.kind === 'create') {
       let b = d.box;
       if (!b || b.w * ppm() < 4) {
-        const def = tool === 'text' ? [60, 10] : tool === 'line' ? [40, 2] : tool === 'qr' ? [25, 25] : [30, 30];
+        const def = tool === 'text' ? [60, 10] : tool === 'line' ? [40, 2] : tool === 'qr' ? [25, 25] : tool === 'icon' ? [14, 14] : tool === 'phone' ? [30, 62] : [30, 30];
         b = { x: d.p0[0], y: d.p0[1], w: def[0], h: def[1] };
       }
       createShape(tool, b);
@@ -427,6 +427,9 @@ SD.editor = (function () {
     else if (kind === 'star') el = G.base({ type: 'star', name: 'Звезда', x: b.x, y: b.y, w: b.w, h: b.h, fill: p.accent, points: 5, inner: 0.5 });
     else if (kind === 'line') el = G.base({ type: 'line', name: 'Линия', x: b.x, y: b.y, w: Math.max(b.w, 5), h: 2, stroke: p.text, strokeW: 0.6, fill: null });
     else if (kind === 'qr') el = G.base({ type: 'qr', name: 'QR-код', x: b.x, y: b.y, w: Math.max(b.w, b.h), h: Math.max(b.w, b.h), data: S.answers.texts.qr || 'https://example.com', fill: p.text });
+    else if (kind === 'icon') { const d = Math.max(b.w, b.h, 8); el = G.base({ type: 'icon', name: 'Значок', icon: 'star', iconStyle: SD.gen.fxFor(S.answers).icons, x: b.x, y: b.y, w: d, h: d, fill: p.icon, fill2: p.primary }); }
+    else if (kind === 'pattern') el = G.base({ type: 'pattern', name: 'Узор', kind: 'dots', cell: 4, x: b.x, y: b.y, w: Math.max(b.w, 20), h: Math.max(b.h, 20), fill: p.primary, fill2: p.accent, opacity: 0.4 });
+    else if (kind === 'phone') { const hh = Math.max(b.h, 60); el = G.base({ type: 'phone', name: 'Телефон', x: b.x, y: b.y, w: hh / 2.05, h: hh, fill: p.soft, fill2: p.ctaMax }); }
     else if (kind === 'text') el = G.text({ name: 'Текст', text: 'Текст', font, weight: 400, size: 14, x: b.x, y: b.y, w: Math.max(b.w, 20), fill: p.text });
     if (!el) return;
     el.cons = { h: 'left', v: 'top' };
@@ -628,6 +631,7 @@ SD.editor = (function () {
     else if (k === 's') setTool('star');
     else if (k === 't') setTool('text');
     else if (k === 'i') setTool('image');
+    else if (k === 'k') setTool('icon');
   }
   window.addEventListener('keyup', e => { if (e.code === 'Space') { spaceDown = false; if (stage) stage.style.cursor = ''; } });
 

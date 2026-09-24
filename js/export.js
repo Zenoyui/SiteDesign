@@ -112,7 +112,7 @@ document.body.onclick=function(e){if(e.target.tagName!='BUTTON')g(i+1)};g(0);<\/
       const o = JSON.parse(await file.text());
       if (!o || !o.doc || !o.doc.pages) throw new Error('это не файл проекта');
       const d = A.defaultAnswers();
-      S.answers = Object.assign(d, o.answers || {}, { opts: Object.assign(d.opts, (o.answers || {}).opts || {}), texts: Object.assign(d.texts, (o.answers || {}).texts || {}) });
+      S.answers = A.mergeAnswers(d, o.answers);
       S.doc = o.doc; S.page = 0; S.sel = [];
       A.resetHistory(); A.save(); A.emit('doc');
       await SD.render.assetsReady(S.doc);

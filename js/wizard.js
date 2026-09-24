@@ -12,8 +12,10 @@ SD.wizard = (function () {
     { id: 'mix', title: 'Сочетание', render: stepMix, live: true },
     { id: 'colors', title: 'Цвета', render: stepColors },
     { id: 'text', title: 'Текст', render: stepText },
+    { id: 'attention', title: 'Внимание', render: stepAttention },
     { id: 'layout', title: 'Расположение', render: stepLayout, live: true },
     { id: 'details', title: 'Детали', render: stepDetails },
+    { id: 'effects', title: 'Эффекты и значки', render: stepEffects, live: true },
     { id: 'editor', title: 'Редактор', render: stepEditor },
     { id: 'result', title: 'Результат', render: stepResult, live: true }
   ];
@@ -61,12 +63,26 @@ SD.wizard = (function () {
     el.append(h('h2', null, `Часть ${S.step + 1}. ${st.title}`));
     el.append(h('div', { id: 'dirtyBox' }));
     st.render(el);
+    renumber();
     showDirty();
     el.scrollTop = scroll;
     document.getElementById('prevStep').disabled = S.step === 0;
     const nx = document.getElementById('nextStep');
     nx.disabled = S.step === STEPS.length - 1;
     nx.textContent = S.step === STEPS.length - 2 ? 'К скачиванию →' : 'Далее →';
+  }
+
+  // Нумерация как в отчёте: «Вопрос 7.1», «Таблица 7.2», «Рисунок 7.1»
+  function renumber() {
+    if (!el) return;
+    const n = S.step + 1, cnt = {};
+    el.querySelectorAll('.q, .cap').forEach(node => {
+      const m = node.textContent.match(/^(Вопрос|Таблица|Рисунок)(\s+[\d.]+)?\.?\s*/);
+      if (!m) return;
+      cnt[m[1]] = (cnt[m[1]] || 0) + 1;
+      const first = node.firstChild;
+      if (first && first.nodeType === 3 && first.textContent.startsWith(m[0])) first.textContent = `${m[1]} ${n}.${cnt[m[1]]}. ` + first.textContent.slice(m[0].length);
+    });
   }
 
   function showDirty() {
@@ -104,6 +120,23 @@ SD.wizard = (function () {
       t.append(tr);
     });
     return [h('div', { class: 'cap' }, caption), t];
+  }
+
+  // Маленькая полоска значков для таблиц
+  function iconStrip(names, style, color, color2, size = 20) {
+    const c = document.createElement('canvas');
+    const dpr = 2;
+    c.width = names.length * (size + 6) * dpr; c.height = size * dpr;
+    c.style.width = names.length * (size + 6) + 'px'; c.style.height = size + 'px'; c.style.verticalAlign = 'middle';
+    const x = c.getContext('2d'); x.scale(dpr, dpr);
+    names.forEach((n, i) => { x.save(); x.translate(i * (size + 6), 0); SD.drawIcon(x, n, style, size, size, color, color2); x.restore(); });
+    return c;
+  }
+  function curFx() { return Object.assign({}, SD.gen.fxFor(S.answers)); }
+  function setFx(patch) {
+    S.answers.fx = Object.assign(curFx(), patch, { auto: false });
+    S.answers.fx.effects = (S.answers.fx.effects || []).slice();
+    A.regenerate(); A.save(); render();
   }
 
   function thumb(ans, maxW = 120, maxH = 150, pageIdx = 0) {
@@ -145,6 +178,17 @@ SD.wizard = (function () {
         A.save(); render();
       }));
     if (S.answers.textsEdited) root.append(h('p', { class: 'note' }, 'Тексты уже изменены вами, поэтому при смене цели они не заменяются. Пример можно подставить на шаге «Текст».'));
+    root.append(h('div', { class: 'q' }, 'Вопрос 3. В какой сфере бизнес?'));
+    root.append(h('p', { class: 'note' }, 'От сферы зависят подсказки по цветам (психология цвета), значки и тексты выгод.'));
+    root.append(...radioTable('Таблица 3. Сфера', ['Сфера', 'Цвета, которые работают', 'Значки'],
+      Object.entries(SD.INDUSTRIES).map(([k, v]) => ({ key: k, cells: [v.name,
+        h('span', null, ...v.palettes.map(pl => h('span', { class: 'strip', style: { marginRight: '4px' }, title: pl.name }, ...pl.c.map(c => h('i', { style: { background: c } }))))),
+        iconStrip(v.icons, 'line', '#000000')] })),
+      S.answers.industry, k => {
+        S.answers.industry = k;
+        if (!S.answers.textsEdited) Object.assign(S.answers.texts, A.benefitTexts(k));
+        A.regenerate(); A.save(); render();
+      }));
     root.append(h('p', { class: 'note' }, 'Не знаете, чего хотите? Нажмите «Случайная идея» вверху — страница сама подберёт комбинацию, а вы поправите.'));
   }
 
@@ -248,6 +292,17 @@ SD.wizard = (function () {
     }
     root.append(h('div', { class: 'cap' }, 'Таблица 8. Палитра макета'), t);
 
+    const ind = SD.INDUSTRIES[S.answers.industry] || SD.INDUSTRIES.transport;
+    root.append(h('div', { class: 'q' }, `Палитры для сферы «${ind.name}» — по психологии цвета`));
+    const ti = h('table', { class: 'doc compact' });
+    ti.append(h('tr', null, h('th', null, 'Палитра'), h('th', null, 'Цвета'), h('th', null, 'Почему работает'), h('th', null, '')));
+    for (const pl of ind.palettes) {
+      const [bg, primary, accent, text] = pl.c;
+      const p = { bg, primary, accent, text, soft: u.mix(bg, primary, 0.12), extra: u.hueShift(accent, 30) };
+      ti.append(h('tr', null, h('td', null, pl.name), h('td', null, h('span', { class: 'strip' }, ...pl.c.map(c => h('i', { style: { background: c } })))), h('td', null, pl.why),
+        h('td', { class: 'c' }, h('button', { class: 'btn sm', onclick: () => { S.answers.palette = strip(p); A.applySoft('palette'); A.save(); render(); } }, 'Взять'))));
+    }
+    root.append(ti);
     root.append(h('div', { class: 'q' }, 'Готовые палитры из выбранных стилей'));
     const t2 = h('table', { class: 'doc compact' });
     t2.append(h('tr', null, h('th', null, 'Палитра'), h('th', null, 'Цвета'), h('th', null, '')));
@@ -261,6 +316,11 @@ SD.wizard = (function () {
       h('button', { class: 'btn sm', onclick: () => { const p = A.pal(); S.answers.palette = strip(Object.assign({}, p, { bg: p.primary, primary: u.readable(p.primary, [p.text, p.accent]), text: u.readable(p.primary, [p.bg, p.text]) })); A.applySoft('palette'); A.save(); render(); } }, 'Инвертировать (цветной фон)'),
       h('button', { class: 'btn sm', onclick: () => { const d = (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 10); const p = A.pal(); const q = {}; for (const r of ['primary', 'accent', 'extra', 'soft']) q[r] = u.hueShift(p[r], d); S.answers.palette = strip(Object.assign({}, p, q)); A.applySoft('palette'); A.save(); render(); } }, 'Похожая палитра (сдвиг оттенка)'),
       h('button', { class: 'btn sm', onclick: () => { S.answers.palette = null; A.applySoft('palette'); A.save(); render(); } }, 'Вернуть палитру стиля')));
+    const tp = h('table', { class: 'doc compact' });
+    tp.append(h('tr', null, h('th', null, ''), h('th', null, 'Цвет'), h('th', null, 'Что чувствует покупатель'), h('th', null, 'Где работает'), h('th', null, 'Осторожно')));
+    for (const [c, n, feel, where, careful] of SD.COLOR_PSY) tp.append(h('tr', null, h('td', { class: 'c' }, h('span', { class: 'sw', style: { background: c } })), h('td', null, n), h('td', null, feel), h('td', null, where), h('td', null, careful)));
+    root.append(h('div', { class: 'cap' }, 'Таблица 9. Психология цвета — справка'), tp);
+    root.append(h('p', { class: 'note' }, 'По исследованиям, до 62–90% первого впечатления о товаре складывается из цвета (S. Singh, 2006). Самый любимый цвет в мире — синий (YouGov, 10 стран), но для еды он подавляет аппетит. Правило 60-30-10: 60% фон, 30% основной, 10% акцент.'));
     const warn = u.contrast(pal.bg, pal.text) < 4.5;
     root.append(h('p', { class: 'note' }, `Контраст текста и фона: ${u.round(u.contrast(pal.bg, pal.text), 1)} : 1 ${warn ? '— маловато, текст может плохо читаться (желательно от 4,5).' : '— хорошо читается.'}`));
   }
@@ -295,6 +355,118 @@ SD.wizard = (function () {
       chips.append(h('span', { class: 'chip', onclick: () => { T.title = idea; S.answers.textsEdited = true; A.applySoft('texts'); A.save(); render(); } }, idea));
     }
     root.append(chips);
+  }
+
+  // ---------- Внимание ----------
+  function stepAttention(root) {
+    const mk = S.answers.mk, T = S.answers.texts;
+    root.append(h('p', null, 'Как макет цепляет взгляд и подталкивает к действию. Ниже — проверенные приёмы маркетинга и психологии. Включайте любые, в любых сочетаниях: каждый добавит на макет свой блок.'));
+    root.append(h('div', { class: 'q' }, 'Вопрос. Какие приёмы привлечения использовать?'));
+    const t = h('table', { class: 'doc' });
+    t.append(h('tr', null, h('th', null, '✓'), h('th', null, 'Приём'), h('th', null, 'Что на макете и текст')));
+    const inp = (k, ph) => {
+      const i = h('input', { type: 'text', value: T[k] || '', placeholder: ph || '' });
+      i.addEventListener('click', e => e.stopPropagation());
+      i.addEventListener('input', () => { T[k] = i.value; S.answers.textsEdited = true; clearTimeout(textTimer); textTimer = setTimeout(() => { A.applySoft('texts'); A.save(); }, 200); });
+      return i;
+    };
+    const ind = SD.INDUSTRIES[S.answers.industry] || SD.INDUSTRIES.transport;
+    const extra = {
+      urgency: () => inp('urgency', 'Только до 30 сентября'),
+      benefits: () => h('div', null, ...[1, 2, 3].map(i => h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', margin: '2px 0' } }, iconStrip([ind.icons[i - 1]], curFx().icons, '#000000', '#7A7A7A', 18), inp('benefit' + i)))),
+      price: () => h('div', { style: { display: 'flex', gap: '6px' } }, h('span', null, 'новая'), inp('priceNew'), h('span', null, 'старая'), inp('priceOld')),
+      proof: () => inp('proof', '4,9 ★ · 10 000 клиентов'),
+      guarantee: () => inp('guarantee', 'Вернём деньги'),
+      contrastCta: () => {
+        const pal = A.pal(), st = SD.gen.styleProps(S.answers, A.variant()), cur = pal[st.ctaRole];
+        const same = String(cur).toUpperCase() === String(pal.ctaMax).toUpperCase();
+        return h('span', { class: 'note', 'data-same': same ? '1' : '0' }, h('span', { class: 'sw', style: { background: cur } }), ' → ', h('span', { class: 'sw', style: { background: pal.ctaMax } }),
+          same ? ' Кнопка уже самого контрастного цвета — при этой палитре ничего не изменится.' : ' Кнопка станет этого цвета.');
+      }
+    };
+    for (const [k, tq] of Object.entries(SD.TECHNIQUES)) {
+      const on = !!mk[k];
+      t.append(h('tr', { class: 'pick' + (on ? ' on' : ''), onclick: () => { set('mk.' + k, !on, 'structure'); render(); } },
+        h('td', { class: 'c' }, h('input', { type: 'checkbox', checked: on, tabindex: -1 })),
+        h('td', null, h('b', null, tq.name), h('br'), h('span', { class: 'note' }, tq.desc)),
+        h('td', null, extra[k] ? extra[k]() : '')));
+    }
+    root.append(h('div', { class: 'cap' }, 'Таблица 10. Приёмы внимания'), t);
+    root.append(h('div', { class: 'btn-row' },
+      h('button', { class: 'btn sm', onclick: () => { for (const k in SD.TECHNIQUES) mk[k] = true; A.regenerate(); A.save(); render(); } }, 'Включить все'),
+      h('button', { class: 'btn sm', onclick: () => { Object.assign(mk, { urgency: true, benefits: false, price: false, proof: true, guarantee: false, arrow: true, contrastCta: true }); A.regenerate(); A.save(); render(); } }, 'Лёгкий набор (не перегружать)'),
+      h('button', { class: 'btn sm', onclick: () => { for (const k in SD.TECHNIQUES) mk[k] = false; A.regenerate(); A.save(); render(); } }, 'Выключить все')));
+    root.append(h('p', { class: 'note' }, 'Не включайте всё сразу на маленьком формате: на A6 лучше 2–3 приёма. Если текст не влезает, страница сама уменьшит кегль.'));
+    const pr = h('table', { class: 'doc compact' });
+    pr.append(h('tr', null, h('th', null, 'Принцип'), h('th', null, 'Почему работает'), h('th', null, 'Что делает страница')));
+    for (const [a, b, c] of SD.PRINCIPLES) pr.append(h('tr', null, h('td', null, a), h('td', null, b), h('td', null, c)));
+    root.append(h('div', { class: 'cap' }, 'Таблица 11. Принципы внимания — справка'), pr);
+  }
+
+  // ---------- Эффекты и значки ----------
+  function stepEffects(root) {
+    const fx = curFx();
+    const tag = like => (like || []).map(id => SD.STYLES[id].name).join(', ');
+    root.append(h('p', null, 'У каждой компании свои «штучки»: тени, наклейки, узоры, стиль значков, способ показать продукт. Здесь их можно взять целиком у одного стиля или смешать как угодно.'));
+
+    root.append(h('div', { class: 'q' }, 'Готовые наборы по стилям'));
+    const kt = h('table', { class: 'doc compact' });
+    kt.append(h('tr', null, h('th', null, 'Стиль'), h('th', null, 'Фирменные приёмы'), h('th', null, '')));
+    for (const id of SD.STYLE_ORDER) {
+      const k = SD.KITS[id];
+      kt.append(h('tr', { class: S.answers.styles.includes(id) ? 'on' : '' }, h('td', null, h('b', null, SD.STYLES[id].name), h('br'), h('span', { class: 'note' }, 'как ' + SD.STYLES[id].like)), h('td', null, k.note),
+        h('td', { class: 'c' }, h('button', { class: 'btn sm', onclick: () => setFx({ effects: k.effects.slice(), icons: k.icons, pattern: k.pattern, display: k.display }) }, 'Взять'))));
+    }
+    root.append(kt);
+    root.append(h('div', { class: 'btn-row' },
+      h('button', { class: 'btn sm primary', onclick: () => {
+        const Sx = S.answers.styles, kits = Sx.map(id => SD.KITS[id]);
+        setFx({ effects: Array.from(new Set(kits.flatMap(k => k.effects))), icons: kits[0].icons, pattern: (kits[1] || kits[0]).pattern, display: (kits[2] || kits[0]).display });
+      } }, 'Смешать наборы выбранных стилей'),
+      h('button', { class: 'btn sm', onclick: () => { S.answers.fx = { auto: true, effects: [], icons: 'soft', pattern: 'none', display: 'none' }; A.regenerate(); A.save(); render(); } }, 'Сбросить (авто)')));
+    if (fx.auto) root.append(h('p', { class: 'note' }, 'Сейчас режим «авто»: эффекты и значки берутся от первого выбранного стиля. Любой выбор ниже переключит на ручной.'));
+
+    root.append(h('div', { class: 'q' }, 'Эффекты (можно несколько)'));
+    const g1 = h('div', { class: 'thumbs' });
+    for (const [k, e] of Object.entries(SD.EFFECTS)) {
+      const on = fx.effects.includes(k);
+      const eff = on ? fx.effects : fx.effects.concat(k);
+      g1.append(h('div', { class: 'thumb' + (on ? ' on' : ''), onclick: () => setFx({ effects: on ? fx.effects.filter(x => x !== k) : fx.effects.concat(k) }) },
+        thumb(withAns({ fx: Object.assign({}, fx, { auto: false, effects: eff }) }), 110, 130),
+        h('div', null, (on ? '✓ ' : '') + e.name), h('div', { class: 'note' }, 'как ' + tag(e.like))));
+    }
+    root.append(h('div', { class: 'cap' }, 'Рисунок 3. Эффекты'), g1);
+
+    root.append(h('div', { class: 'q' }, 'Стиль значков'));
+    const it = h('table', { class: 'doc compact' });
+    const pal = A.pal();
+    for (const [k, st] of Object.entries(SD.ICON_STYLES)) {
+      const on = fx.icons === k;
+      it.append(h('tr', { class: 'pick' + (on ? ' on' : ''), onclick: () => setFx({ icons: k }) },
+        h('td', { class: 'c' }, h('input', { type: 'radio', checked: on, tabindex: -1 })),
+        h('td', null, st.name, h('br'), h('span', { class: 'note' }, 'как ' + tag(st.like))),
+        h('td', null, iconStrip(['scooter', 'burger', 'clock', 'gift', 'shield', 'star'], k, pal.icon, pal.primary, 24))));
+    }
+    root.append(h('div', { class: 'cap' }, 'Таблица 12. Значки'), it);
+
+    root.append(h('div', { class: 'q' }, 'Фоновый узор'));
+    const g2 = h('div', { class: 'thumbs' });
+    for (const [k, pt] of Object.entries(SD.PATTERNS)) {
+      g2.append(h('div', { class: 'thumb' + (fx.pattern === k ? ' on' : ''), onclick: () => setFx({ pattern: k }) },
+        thumb(withAns({ fx: Object.assign({}, fx, { auto: false, pattern: k }) }), 110, 130),
+        h('div', null, pt.name), h('div', { class: 'note' }, pt.like.length ? 'как ' + tag(pt.like) : '—')));
+    }
+    root.append(h('div', { class: 'cap' }, 'Рисунок 4. Узоры'), g2);
+
+    root.append(h('div', { class: 'q' }, 'Как показать продукт'));
+    if (!['top', 'left', 'bottom'].includes(S.answers.layout)) root.append(h('p', { class: 'warn' }, 'Показ продукта встаёт в свободную зону и работает с расположениями «Текст сверху», «Колонка слева» и «Текст снизу». Сейчас выбрано «' + SD.LAYOUTS[S.answers.layout].name + '».'));
+    const g3 = h('div', { class: 'thumbs' });
+    for (const [k, d] of Object.entries(SD.DISPLAYS)) {
+      g3.append(h('div', { class: 'thumb' + (fx.display === k ? ' on' : ''), onclick: () => setFx({ display: k }) },
+        thumb(withAns({ fx: Object.assign({}, fx, { auto: false, display: k }) }), 110, 130),
+        h('div', null, d.name), h('div', { class: 'note' }, d.desc + (d.like.length ? ' · как ' + tag(d.like) : ''))));
+    }
+    root.append(h('div', { class: 'cap' }, 'Рисунок 5. Показ продукта'), g3);
   }
 
   // ---------- 7. Расположение ----------
@@ -440,11 +612,18 @@ SD.wizard = (function () {
     a.texts = Object.assign({ qr: a.texts.qr }, SD.EXAMPLES[goal]);
     a.texts.title = P(SD.IDEAS[goal]);
     if (kind === 'menu') a.texts.details = SD.MENU_DETAILS;
+    a.industry = P(Object.keys(SD.INDUSTRIES));
+    Object.assign(a.texts, A.benefitTexts(a.industry));
+    for (const k in SD.TECHNIQUES) a.mk[k] = Math.random() < 0.3;
+    if (Math.random() < 0.6) {
+      const kits = styles.map(id => SD.KITS[id]);
+      a.fx = { auto: false, effects: Array.from(new Set(kits.flatMap(k => k.effects))).filter(() => Math.random() < 0.7), icons: P(Object.keys(SD.ICON_STYLES)), pattern: P(['none', 'none', ...Object.keys(SD.PATTERNS)]), display: P(Object.keys(SD.DISPLAYS)) };
+    } else a.fx = { auto: true, effects: [], icons: 'soft', pattern: 'none', display: 'none' };
     Object.assign(a.opts, { motif: true, cta: Math.random() < 0.8, promo: Math.random() < 0.6, qr: Math.random() < 0.35, contacts: true, rounded: P([0.5, 1, 1, 1.5]) });
     A.regenerate(true);
     render(); SD.editor.fit();
     SD.toast('Идея: ' + SD.KINDS[kind].name + ' · ' + styles.map(s => SD.STYLES[s].name).join(' + '));
   }
 
-  return { init, render, go, STEPS };
+  return { init, render, go, renumber, STEPS };
 })();
