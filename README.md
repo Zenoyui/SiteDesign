@@ -64,7 +64,16 @@ python3 -m http.server 8000
 # открыть http://localhost:8000
 ```
 
-Или включите GitHub Pages для репозитория (Settings → Pages → Deploy from a branch).
+### Публикация на GitHub Pages
+
+В репозитории уже есть workflow `.github/workflows/pages.yml`, который выкладывает сайт при каждом push.
+Нужно один раз:
+
+1. Если репозиторий приватный и аккаунт бесплатный — сделать его публичным (Settings → General → Danger Zone → Change visibility). Pages для приватных репозиториев есть только в GitHub Pro.
+2. Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+3. Actions → «Публикация на GitHub Pages» → Run workflow (или просто сделать любой push).
+
+Адрес сайта: `https://zenoyui.github.io/SiteDesign/`
 Для шрифтов, PDF и PPTX нужен интернет: библиотеки грузятся с cdnjs и jsDelivr по мере надобности.
 
 ## Структура
