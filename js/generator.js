@@ -722,6 +722,7 @@ SD.gen = (function () {
   function front(ctx) {
     const { ans, W, H, m, st } = ctx;
     const s = sizes(ctx);
+    ctx.showcase = false;
     const mk0 = ans.mk || {}, T = ans.texts;
     const drop = ctx.drop || new Set();
     const mk = new Proxy(mk0, { get: (o, k) => o[k] && !drop.has(k) });
@@ -807,7 +808,10 @@ SD.gen = (function () {
       const cta = cb.els;
       const groupEnd = cb.end;
       let shift = 0;
-      if (lay === 'center' || lay === 'left') {
+      // «витрина»: по центру текст сверху, продукт под ним (Apple, Samsung, Xiaomi)
+      const showcase = lay === 'center' && !o.image && !ctx.tiny && ctx.fx.display && ctx.fx.display !== 'none';
+      if (showcase) shift = m * 0.3;
+      else if (lay === 'center' || lay === 'left') {
         const top = o.image && lay === 'center' ? m + H * 0.36 + gap : m;
         const avail = yBottom - top;
         shift = Math.max(0, top - m + (avail - (groupEnd - m)) / 2);
@@ -818,6 +822,7 @@ SD.gen = (function () {
       mid.push(...flat(heads), ...flat(bodies), ...cta);
       const textEnd = groupEnd + shift;
       if (lay === 'top') promoAt = [W - m - pd * 0.45, textEnd + gap + pd * 0.45];
+      ctx.showcase = showcase;
       if (lay === 'left') promoAt = [W - m - pd * 0.5, m + pd * 0.45];
 
       if (lay === 'top') {
@@ -825,7 +830,7 @@ SD.gen = (function () {
         if (o.image) { back.push(mkImage(ctx, zone, ctx.st.radiusK * 80)); zone = { x: W * 0.55, y: zone.y - gap, w: W * 0.5, h: zone.h * 0.5 }; }
       } else if (lay === 'center') {
         if (o.image) { back.push(mkImage(ctx, { x: m, y: m, w: W - 2 * m, h: H * 0.36 }, ctx.st.radiusK * 80)); }
-        zone = { x: W * 0.45, y: -H * 0.08, w: W * 0.62, h: H * 0.3 };
+        zone = showcase ? { x: W * 0.12, y: textEnd + gap, w: W * 0.76, h: Math.max(8, yBottom - textEnd - gap * 2) } : { x: W * 0.45, y: -H * 0.08, w: W * 0.62, h: H * 0.3 };
         if (has('stripe') || has('block')) zone = { x: m, y: Math.min(textEnd + gap, yBottom - H * 0.14), w: W - 2 * m, h: Math.max(8, yBottom - textEnd - gap * 2) };
       } else {
         const zx = m + colW + gap;
@@ -892,7 +897,7 @@ SD.gen = (function () {
 
     // Показ продукта (телефон, круг, карточка, наклейка) — в свободной зоне
     const disp = ctx.tiny ? "none" : ctx.fx.display;
-    if (disp && disp !== 'none' && zone && ['top', 'left', 'bottom'].includes(lay) && !(o.image && lay !== 'bottom')) {
+    if (disp && disp !== 'none' && zone && (['top', 'left', 'bottom'].includes(lay) || (lay === 'center' && ctx.showcase)) && !(o.image && lay !== 'bottom')) {
       const vx = Math.max(zone.x, m * 0.5), vy = Math.max(zone.y, m * 0.5);
       const vz = { x: vx, y: vy, w: Math.min(zone.x + zone.w, W - m * 0.5) - vx, h: Math.min(zone.y + zone.h, limitY) - vy };
       if (lay === 'top' && vz.w > vz.h * 1.3) { vz.x += vz.w * 0.35; vz.w *= 0.65; }
@@ -1042,6 +1047,7 @@ SD.gen = (function () {
       else if (k === 'dot' || k === 'blobs' || k === 'bigdot') { if (!(land && o.qr)) back.push(...motif(ctx, k, z)); }
     }
     if (idx % 2 === 0 && ans.kind !== 'slides') heading.textKey = 'title';
+    avoidDecor(ctx, back, els);
     return [...plate(ctx), ...back, ...els];
   }
 

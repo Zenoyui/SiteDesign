@@ -101,7 +101,7 @@ SD.RECIPES = {
   ] },
   sber: { looks: [
     { name: 'зелёный градиент', desc: 'Весь лист — объёмный зелёный градиент, белый текст, белая кнопка',
-      layout: 'left', align: 'left', titleScale: 1.2, invert: true, plate: 'mesh', tw: 700, tls: -0.01, cta: 'pill', ctaRole: 'primary', promo: 'pill', promoRole: 'primary', motifs: [],
+      layout: 'left', align: 'left', titleScale: 1.2, pal: { bg: '#0E7A36', text: '#FFFFFF', primary: '#FFFFFF', accent: '#23C9B8', soft: '#1A8C45' }, plate: 'mesh', tw: 700, tls: -0.01, cta: 'pill', ctaRole: 'primary', promo: 'pill', promoRole: 'primary', motifs: [],
       fx: { effects: ['shadow'], icons: 'soft', pattern: 'none', display: 'card', gradient: 'none' } },
     { name: 'белый с кольцом', desc: 'Белый лист, градиентное кольцо, зелёная кнопка',
       layout: 'top', align: 'left', titleScale: 1.1, tw: 700, cta: 'pill', promo: 'pill', motifs: ['ring'],

@@ -70,7 +70,7 @@ Object.assign(SD.STYLES, {
   apple: {
     id: 'apple', name: 'Минималистичный', like: 'Apple', group: 'tech',
     about: 'Продукт — главный герой: много воздуха, крупный спокойный заголовок по центру, одна синяя ссылка-кнопка, мягкое свечение вокруг товара.',
-    colors: { primary: '#1D1D1F', accent: '#0A6FD8', bg: '#FBFBFD', text: '#1D1D1F', soft: '#F0F0F4' },
+    colors: { primary: '#1D1D1F', accent: '#0862C4', bg: '#FBFBFD', text: '#1D1D1F', soft: '#F0F0F4' },
     original: 'почти чёрный, белый, фирменный синий для ссылок',
     font: 'Inter', fontNote: 'Inter вместо фирменного SF Pro',
     titleWeight: 700, bodyWeight: 400, radius: 0.07, upper: false, ctaRole: 'accent', pill: true,
