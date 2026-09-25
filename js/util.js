@@ -104,12 +104,17 @@ SD.u = {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   },
-  loadScript(src) {
+  // Загрузка библиотеки с повторами: при плохой сети первая попытка может сорваться
+  loadScript(src, tries = 3) {
     SD.u._scripts = SD.u._scripts || {};
     if (!SD.u._scripts[src]) SD.u._scripts[src] = new Promise((ok, fail) => {
-      const s = document.createElement('script');
-      s.src = src; s.onload = ok; s.onerror = () => { delete SD.u._scripts[src]; fail(new Error('Не удалось загрузить ' + src)); };
-      document.head.appendChild(s);
+      const attempt = n => {
+        const s = document.createElement('script');
+        s.src = src; s.onload = ok;
+        s.onerror = () => { s.remove(); if (n > 1) setTimeout(() => attempt(n - 1), 1200); else { delete SD.u._scripts[src]; fail(new Error('Не удалось загрузить ' + src + ' — проверьте интернет')); } };
+        document.head.appendChild(s);
+      };
+      attempt(tries);
     });
     return SD.u._scripts[src];
   },

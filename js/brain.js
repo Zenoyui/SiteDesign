@@ -196,17 +196,18 @@ SD.brain = (function () {
       let doc;
       try { doc = SD.gen.build(a); } catch (e) { continue; }
       const sc = score(doc, a, { contrast: false });
+      withTaste(sc, a, doc);
       res.push({ ans: a, doc, score: sc });
       if (opts.onProgress && i % 8 === 0) { opts.onProgress(i / list.length * 0.8, i, list.length); await new Promise(r => setTimeout(r, 0)); }
     }
-    res.sort((x, y) => y.score.total - x.score.total);
+    res.sort((x, y) => y.score.rank - x.score.rank);
     // второй этап: для лучших — полная проверка с контрастом по пикселям
     const top = res.slice(0, opts.deep || 18);
     for (let i = 0; i < top.length; i++) {
-      top[i].score = score(top[i].doc, top[i].ans, { contrast: true });
+      top[i].score = withTaste(score(top[i].doc, top[i].ans, { contrast: true }), top[i].ans, top[i].doc);
       if (opts.onProgress) { opts.onProgress(0.8 + 0.2 * i / top.length, i, top.length); await new Promise(r => setTimeout(r, 0)); }
     }
-    top.sort((x, y) => y.score.total - x.score.total);
+    top.sort((x, y) => y.score.rank - x.score.rank);
     // разнообразие: не показываем почти одинаковые
     const pickd = [];
     for (const t of top) {
@@ -215,6 +216,13 @@ SD.brain = (function () {
       if (pickd.length >= (opts.show || 6)) break;
     }
     return { best: pickd, tested: list.length, current: res.find(x => x.ans === list[0]) };
+  }
+
+  // Вкус пользователя влияет на порядок вариантов, но не на объективную оценку
+  function withTaste(sc, ans, doc) {
+    sc.taste = SD.taste ? SD.taste.bonus(ans, doc) : 0;
+    sc.rank = sc.total + sc.taste;
+    return sc;
   }
 
   // Пояснение «почему этот вариант»

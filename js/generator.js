@@ -397,7 +397,7 @@ SD.gen = (function () {
   // ---------- Градиент: нужен ли и какой ----------
   // Правила собраны из исследований восприятия (см. SD.GRADIENT_RULES в brands.js).
   const GRAD_IND = { finance: 2, event: 2, beauty: 2, kids: 1, transport: 1, premium: 1, education: 1, delivery: 0, coffee: 0, food: 0, retail: -1, eco: -2 };
-  const GRAD_STYLE = { urent: 2, yandex: 0, go: -1, bk: -1, whoosh: -2, vit: -2, apple: 1, xiaomi: -1, samsung: 2, nothing: -3, pixel: 0, sber: 3, ozon: 0, wb: 3, ikea: -3 };
+  const GRAD_STYLE = { urent: 2, yandex: 0, go: -1, bk: -1, whoosh: -2, vit: -2, apple: 1, xiaomi: -1, samsung: 2, nothing: -3, pixel: 0, sber: 3, ozon: 0, wb: 3, ikea: -3, swiss: -3, brutal: -3, retro70: -1, y2k: 3, japan: -3, bauhaus: -3 };
   function surfaces(doc, ctx) {
     const A = ctx.W * ctx.H;
     const list = [];
@@ -499,7 +499,7 @@ SD.gen = (function () {
     const grp = u.uid();
     for (const e of out) e.grp = grp; // части одного мотива двигаются вместе
     // декор не выходит из своей зоны влево — туда, где текст
-    if (z && kind !== 'wave' && kind !== 'stripe') for (const e of out) if (e.x < z.x) e.x = z.x;
+    if (z && !['wave', 'stripe', 'rainbow'].includes(kind)) for (const e of out) if (e.x < z.x) e.x = z.x;
     if (z && kind === 'bigdot' && out.length === 2 && out[1].x < z.x) { const [dot, dash] = out; dash.x = dot.x; dash.y = dot.y + dot.h + dash.h; dash.w = Math.min(dash.w, dot.w); }
     return out;
   }
@@ -548,6 +548,46 @@ SD.gen = (function () {
         out.push(base({ type: 'ellipse', name: 'Точка', role: 'decor', x: cx, y: cy, w: d, h: d, fillRole: second === 'accent' ? 'accent' : second }));
         const dw = d * 0.95, dh = d * 0.22;
         out.push(base({ name: 'Тире', role: 'decor', x: cx - dw - d * 0.22, y: cy + (d - dh) / 2, w: dw, h: dh, radius: dh / 2, fillRole: roles.dash || 'extra' }));
+        break;
+      }
+      case 'swissgrid': {
+        // красный блок и тонкие линейки по модульной сетке
+        const bw = z.w * 0.55, bh = Math.min(z.h, bw * 1.1);
+        out.push(base({ name: 'Красный блок', role: 'decor', x: z.x + z.w - bw, y: z.y + (z.h - bh) / 2, w: bw, h: bh, fillRole: main }));
+        for (let k = 0; k < 4; k++) out.push(base({ type: 'line', name: 'Линейка', role: 'decor', x: z.x, y: z.y + z.h * (0.12 + k * 0.25), w: z.w * 0.4, h: 1, stroke: '#000', strokeRole: 'text', strokeW: 0.3 }));
+        break;
+      }
+      case 'brutal': {
+        const bw = d0 * 0.9, bh = d0 * 0.6, sw = Math.max(0.6, d0 * 0.02);
+        out.push(base({ name: 'Карточка в рамке', role: 'decor', x: z.x + z.w - bw, y: z.y + z.h * 0.1, w: bw, h: bh, fillRole: main, stroke: '#000', strokeRole: 'text', strokeW: sw, shadow: { x: sw * 2, y: sw * 2, blur: 0, colorRole: 'text', alpha: 1 } }));
+        out.push(base({ type: 'ellipse', name: 'Круг в рамке', role: 'decor', x: z.x + z.w - bw * 1.1, y: z.y + z.h * 0.1 + bh * 0.75, w: bh * 0.7, h: bh * 0.7, fillRole: second, stroke: '#000', strokeRole: 'text', strokeW: sw }));
+        break;
+      }
+      case 'rainbow': {
+        // концентрические дуги из угла зоны
+        const R = d0 * 0.98, cx = z.x + z.w, cy = z.y + z.h;
+        ['extra', 'primary', 'accent', 'soft', 'bg'].forEach((role, k) => { const r = R * (1 - k * 0.18); out.push(base({ type: 'ellipse', name: 'Дуга', role: 'decor', x: cx - r, y: cy - r, w: r * 2, h: r * 2, fillRole: role })); });
+        break;
+      }
+      case 'y2k': {
+        const pw = d0 * 0.95, ph = d0 * 0.34;
+        const pill = base({ name: 'Перламутровая пилюля', role: 'decor', x: z.x + z.w - pw, y: z.y + (z.h - ph) / 2, w: pw, h: ph, radius: ph / 2, rot: -12, fillRole: main });
+        pill.gradType = 'aurora'; pill.gradSeed = 4;
+        out.push(pill);
+        [[0.2, 0.1, 0.22, 'extra'], [0.85, 0.05, 0.16, 'accent'], [0.55, 0.85, 0.12, 'extra']].forEach(([fx, fy, k, role]) => { const d = d0 * k; out.push(base({ type: 'star', name: 'Блёстка', role: 'decor', points: 4, inner: 0.28, x: z.x + z.w * fx - d / 2, y: z.y + z.h * fy - d / 2, w: d, h: d, fillRole: role })); });
+        break;
+      }
+      case 'hanko': {
+        const d = Math.min(d0 * 0.32, 20);
+        out.push(base({ name: 'Печать', role: 'decor', x: z.x + z.w - d - z.w * 0.1, y: z.y + z.h - d - z.h * 0.1, w: d, h: d, radius: d * 0.08, fillRole: main }));
+        out.push(base({ type: 'line', name: 'Тонкая вертикаль', role: 'decor', x: z.x + z.w - d * 0.5 - z.w * 0.1 - z.h * 0.3, y: z.y + z.h * 0.35, w: z.h * 0.6, h: 1, rot: 90, stroke: '#000', strokeRole: 'text', strokeW: 0.25 }));
+        break;
+      }
+      case 'bauhaus': {
+        const d = d0 * 0.5;
+        out.push(base({ type: 'ellipse', name: 'Круг', role: 'decor', x: z.x + z.w - d * 1.9, y: z.y + z.h * 0.08, w: d, h: d, fillRole: main }));
+        out.push(base({ name: 'Квадрат', role: 'decor', x: z.x + z.w - d, y: z.y + z.h * 0.08 + d * 0.5, w: d, h: d, fillRole: 'extra' }));
+        out.push(base({ type: 'star', name: 'Треугольник', role: 'decor', points: 3, inner: 0.5, x: z.x + z.w - d * 1.6, y: z.y + z.h * 0.08 + d * 0.95, w: d * 1.1, h: d * 1.1, fillRole: second }));
         break;
       }
       case 'glow': {
@@ -871,7 +911,8 @@ SD.gen = (function () {
     const groups = [];
     const byGrp = {};
     for (const d of back) {
-      if (d.role !== 'decor' || d.type === 'wave' || (d.type === 'pattern' && d.role === 'pattern') || d.w >= ctx.W * 0.95) continue;
+      // фоновые полосы во всю ширину не трогаем — они задуманы под текстом
+      if (d.role !== 'decor' || d.type === 'wave' || (d.type === 'pattern' && d.role === 'pattern') || (d.type === 'rect' && d.w >= ctx.W * 0.95)) continue;
       const key = d.grp || d.id;
       if (!byGrp[key]) { byGrp[key] = []; groups.push(byGrp[key]); }
       byGrp[key].push(d);

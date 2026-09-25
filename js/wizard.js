@@ -499,7 +499,16 @@ SD.wizard = (function () {
   }
 
   // ---------- Автопилот ----------
-  let autoRes = null, autoSel = 0;
+  let autoRes = null, autoSel = 0, pair = null, pairSeed = 1;
+  // Пара заметно разных вариантов для сравнения
+  function makePair() {
+    const list = SD.brain.candidates(S.answers, {}, 30, 1000 + (pairSeed++) * 7);
+    const a = list[1 + Math.floor(Math.random() * (list.length - 1))];
+    let b = null;
+    for (let t = 0; t < 20 && !b; t++) { const c = list[1 + Math.floor(Math.random() * (list.length - 1))]; if (c !== a && (c.layout !== a.layout || c.variant !== a.variant)) b = c; }
+    b = b || list[0];
+    return [a, b].map(x => ({ ans: x, doc: SD.gen.build(x) }));
+  }
   const autoKeep = { style: false, layout: false, fx: false };
   function scoreTable(sc) {
     const t = h('table', { class: 'doc compact' });
@@ -513,6 +522,26 @@ SD.wizard = (function () {
     const cur = SD.brain.score(S.doc, S.answers);
     root.append(h('div', { class: 'q' }, `Текущий макет: ${cur.total}/100`));
     root.append(h('div', { class: 'cap' }, 'Таблица. Оценка текущего макета'), scoreTable(cur));
+    // «Какой лучше?» — обучение вкусу
+    root.append(h('div', { class: 'q' }, 'Вопрос. Какой вариант нравится больше?'));
+    root.append(h('p', { class: 'note' }, 'Выберите из двух — страница запомнит ваш вкус и будет ставить похожие варианты выше. Чем больше выборов, тем точнее (от 5–8).'));
+    if (!pair) pair = makePair();
+    const pr = h('div', { style: { display: 'flex', gap: '12px', flexWrap: 'wrap' } });
+    pair.forEach((pc, i) => {
+      const k = Math.min(150 / pc.doc.w, 190 / pc.doc.h);
+      const c = SD.render.pageCanvas(pc.doc, pc.doc.pages[0], k * 2);
+      c.style.width = pc.doc.w * k + 'px'; c.style.height = pc.doc.h * k + 'px';
+      pr.append(h('div', { class: 'thumb pairpick', style: { width: 'auto' }, onclick: () => {
+        SD.taste.update(SD.taste.features(pc.ans, pc.doc), SD.taste.features(pair[1 - i].ans, pair[1 - i].doc));
+        pair = makePair(); render();
+      } }, c, h('div', null, i ? 'Правый' : 'Левый')));
+    });
+    root.append(pr, h('div', { class: 'btn-row' }, h('button', { class: 'btn sm', onclick: () => { pair = makePair(); render(); } }, 'Не могу выбрать — другую пару'),
+      h('button', { class: 'btn sm', onclick: () => { SD.taste.reset(); pair = makePair(); render(); } }, 'Забыть мой вкус')));
+    const ts = SD.taste.summary();
+    if (ts.n) root.append(h('p', { id: 'tasteBox' }, `Сделано выборов: ${ts.n}. `, ts.likes.length ? `Вам нравится: ${ts.likes.join(', ')}. ` : '', ts.dislikes.length ? `Меньше нравится: ${ts.dislikes.join(', ')}.` : ''));
+    else root.append(h('p', { id: 'tasteBox', class: 'note' }, 'Выборов пока нет.'));
+
     root.append(h('div', { class: 'q' }, 'Вопрос. Что нельзя менять при подборе?'));
     const kt = h('table', { class: 'doc compact' });
     for (const [k, nm] of [['style', 'Стиль и цвета (вариант сочетания)'], ['layout', 'Расположение'], ['fx', 'Эффекты, узор, показ, градиент']]) {
@@ -541,7 +570,7 @@ SD.wizard = (function () {
         c.style.width = b.doc.w * k + 'px'; c.style.height = b.doc.h * k + 'px';
         const v = SD.gen.variants(b.ans.styles)[b.ans.variant] || {};
         g.append(h('div', { class: 'thumb' + (i === autoSel ? ' on' : ''), onclick: () => { autoSel = i; render(); } }, c,
-          h('div', null, h('b', null, b.score.total + '/100')), h('div', { class: 'note' }, `${SD.LAYOUTS[b.ans.layout].name} · ${v.title || ''} · ${SD.gen.GRAD_TYPES[(b.doc.decisions || []).find(d => d.topic === 'Градиент') ? Object.keys(SD.gen.GRAD_TYPES).find(t => SD.gen.GRAD_TYPES[t] === b.doc.decisions.find(d => d.topic === 'Градиент').choice) : 'none']}`)));
+          h('div', null, h('b', null, b.score.total + '/100'), b.score.taste ? ` · вкус ${b.score.taste > 0 ? '+' : ''}${b.score.taste}` : ''), h('div', { class: 'note' }, `${SD.LAYOUTS[b.ans.layout].name} · ${v.title || ''} · ${SD.gen.GRAD_TYPES[(b.doc.decisions || []).find(d => d.topic === 'Градиент') ? Object.keys(SD.gen.GRAD_TYPES).find(t => SD.gen.GRAD_TYPES[t] === b.doc.decisions.find(d => d.topic === 'Градиент').choice) : 'none']}`)));
       });
       root.append(h('div', { class: 'cap' }, 'Рисунок. Лучшие варианты'), g);
       const b = autoRes.best[autoSel];
@@ -651,6 +680,25 @@ SD.wizard = (function () {
     t.append(h('tr', null, h('th', null, 'Параметр'), h('th', null, 'Значение')));
     for (const [k, val] of rows) t.append(h('tr', null, h('td', null, k), h('td', null, val)));
     root.append(h('div', { class: 'cap' }, 'Таблица 15. Сводка по макету'), t);
+
+    // Серия в одном стиле
+    root.append(h('div', { class: 'q' }, 'Серия в одном стиле'));
+    root.append(h('p', { class: 'note' }, 'Из тех же ответов страница собирает сразу флаер, пост, сторис, баннер и визитку — единый фирменный комплект для клиента.'));
+    const ser = SD.series.build(S.answers);
+    const sg = h('div', { class: 'thumbs' });
+    for (const it of ser) {
+      const k = Math.min(120 / it.doc.w, 140 / it.doc.h);
+      const c = SD.render.pageCanvas(it.doc, it.doc.pages[0], k * 2);
+      c.style.width = it.doc.w * k + 'px'; c.style.height = it.doc.h * k + 'px';
+      const errs = SD.lint.check(it.doc, { contrast: false }).filter(i => i.level === 'error').length;
+      sg.append(h('div', { class: 'thumb', title: 'Открыть этот формат в редакторе', onclick: () => {
+        S.answers = Object.assign(S.answers, { format: it.ans.format, orient: it.ans.orient, pages: 1, layout: it.ans.layout });
+        A.regenerate(true); SD.editor.fit(); render(); SD.toast('Открыт формат: ' + it.name);
+      } }, c, h('div', null, it.name), h('div', { class: 'note' }, `${Math.round(it.doc.w)}×${Math.round(it.doc.h)} мм${errs ? ' · ошибок: ' + errs : ''}`)));
+    }
+    root.append(h('div', { class: 'cap' }, 'Рисунок. Серия'), sg);
+    const sb = (label, fn) => { const b = h('button', { class: 'btn sm' }, label); b.addEventListener('click', async () => { b.disabled = true; try { await fn(); } catch (e) { SD.toast('Ошибка: ' + e.message); } b.disabled = false; }); return b; };
+    root.append(h('div', { class: 'btn-row' }, sb('Скачать серию одним PDF', () => SD.exporter.seriesPdf(ser)), sb('Скачать серию PNG', () => SD.exporter.seriesPng(ser))));
 
     const bs = SD.brain.score(S.doc, S.answers);
     root.append(h('div', { class: 'cap' }, 'Таблица. Готовность к выпуску'), SD.ready.table(SD.ready.check(S.doc, S.answers, S.exportOpts, bs.total)));

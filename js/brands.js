@@ -159,9 +159,72 @@ Object.assign(SD.STYLES, {
     mood: 'Практично, честно, по-домашнему'
   }
 });
+// Направления дизайна без брендов
+Object.assign(SD.STYLES, {
+  swiss: {
+    id: 'swiss', name: 'Швейцарский', like: 'Международный типографский стиль', group: 'direction',
+    about: '1950–60-е, Цюрих и Базель: модульная сетка, асимметрия, гротеск, красный-чёрный-белый, текст как главный образ.',
+    colors: { primary: '#E1251B', accent: '#111111', bg: '#FFFFFF', text: '#111111', soft: '#F0F0F0' },
+    original: 'красный, чёрный, белый; Helvetica, Akzidenz-Grotesk',
+    font: 'Inter', fontNote: 'Inter — наследник швейцарских гротесков',
+    titleWeight: 800, bodyWeight: 400, radius: 0, upper: false,
+    motif: 'swissgrid', shapes: 'Сетка и тонкие линейки, красный прямоугольник, асимметрия',
+    mood: 'Ясно, строго, по-взрослому'
+  },
+  brutal: {
+    id: 'brutal', name: 'Брутализм', like: 'Необрутализм в вебе', group: 'direction',
+    about: 'Нарочно «сырой» дизайн: толстые чёрные рамки, жёсткие тени без размытия, кислотные плоские цвета, моноширинный шрифт.',
+    colors: { primary: '#FFE14A', accent: '#FF6B9E', bg: '#F6F1E6', text: '#111111', soft: '#E9E3D3', extra: '#7EE0A8' },
+    original: 'кислотные цвета, чёрные рамки',
+    font: 'IBM Plex Mono', fontNote: 'Моноширинный IBM Plex Mono',
+    titleWeight: 600, bodyWeight: 400, radius: 0.01, upper: true,
+    motif: 'brutal', shapes: 'Карточки в толстых чёрных рамках, тень-сдвиг',
+    mood: 'Дерзко, честно, заметно'
+  },
+  retro70: {
+    id: 'retro70', name: 'Ретро-70-е', like: 'Семидесятые', group: 'direction',
+    about: 'Тёплые горчичный, оранжевый и коричневый, радужные дуги-полосы, пухлые округлые буквы.',
+    colors: { primary: '#E0702A', accent: '#E9B23E', bg: '#F7EBD5', text: '#4A2A17', soft: '#EEDCBC', extra: '#9A4A26' },
+    original: 'горчичный, оранжевый, коричневый, кремовый',
+    font: 'Nunito', fontNote: 'Nunito Black — пухлый и округлый',
+    titleWeight: 900, bodyWeight: 700, radius: 0.14, upper: false,
+    motif: 'rainbow', shapes: 'Радужные дуги, скругления, тёплые полосы',
+    mood: 'Уютно, ностальгично, тепло'
+  },
+  y2k: {
+    id: 'y2k', name: 'Y2K', like: 'Эстетика 2000-х', group: 'direction',
+    about: 'Хром и глянец рубежа тысячелетий: сиреневый и голубой, блёстки-звёздочки, пилюли, переливы.',
+    colors: { primary: '#8A5CF6', accent: '#56D8F5', bg: '#F4F0FF', text: '#1B1340', soft: '#E6DEFF', extra: '#FF8AD8' },
+    original: 'хром, сиреневый, голубой, розовый',
+    font: 'Unbounded', fontNote: 'Unbounded — широкий «футуристичный» гротеск',
+    titleWeight: 800, bodyWeight: 400, radius: 0.16, upper: false, pill: true,
+    motif: 'y2k', shapes: 'Звёздочки-блёстки, пилюли, перламутровые градиенты',
+    mood: 'Игриво, модно, чуть наивно'
+  },
+  japan: {
+    id: 'japan', name: 'Японский минимализм', like: 'Ма — искусство пустоты', group: 'direction',
+    about: 'Много пустого пространства, тонкая вертикаль, маленькая красная печать, спокойный антиквенный шрифт.',
+    colors: { primary: '#C8372D', accent: '#2B2B2B', bg: '#F7F4EC', text: '#2B2B2B', soft: '#ECE7DA' },
+    original: 'бумага, тушь, красная печать-ханко',
+    font: 'PT Serif', fontNote: 'PT Serif — спокойная антиква',
+    titleWeight: 700, bodyWeight: 400, radius: 0, upper: false,
+    motif: 'hanko', shapes: 'Красная печать, тонкая линия, пустота',
+    mood: 'Тихо, сосредоточенно, благородно'
+  },
+  bauhaus: {
+    id: 'bauhaus', name: 'Баухаус', like: 'Школа Баухаус, 1920-е', group: 'direction',
+    about: 'Основные цвета — красный, жёлтый, синий — и основные фигуры — круг, квадрат, треугольник; функция важнее украшения.',
+    colors: { primary: '#D6392B', accent: '#F2BE22', bg: '#F5F0E6', text: '#161616', soft: '#E8E1D1', extra: '#1F4FA8' },
+    original: 'красный, жёлтый, синий, чёрный',
+    font: 'Montserrat', fontNote: 'Montserrat — геометричный гротеск',
+    titleWeight: 800, bodyWeight: 400, radius: 0, upper: true,
+    motif: 'bauhaus', shapes: 'Круг, квадрат, треугольник основных цветов',
+    mood: 'Смело, геометрично, по-художественному'
+  }
+});
 for (const id of ['yandex', 'go', 'whoosh', 'urent', 'bk', 'vit']) SD.STYLES[id].group = 'service';
-SD.STYLE_GROUPS = { service: 'Сервисы и еда', tech: 'Смартфоны и техника', retail: 'Банки, маркетплейсы, ретейл' };
-SD.STYLE_ORDER = ['yandex', 'go', 'whoosh', 'urent', 'bk', 'vit', 'apple', 'xiaomi', 'samsung', 'nothing', 'pixel', 'sber', 'ozon', 'wb', 'ikea'];
+SD.STYLE_GROUPS = { service: 'Сервисы и еда', tech: 'Смартфоны и техника', retail: 'Банки, маркетплейсы, ретейл', direction: 'Направления дизайна (без брендов)' };
+SD.STYLE_ORDER = ['yandex', 'go', 'whoosh', 'urent', 'bk', 'vit', 'apple', 'xiaomi', 'samsung', 'nothing', 'pixel', 'sber', 'ozon', 'wb', 'ikea', 'swiss', 'brutal', 'retro70', 'y2k', 'japan', 'bauhaus'];
 
 SD.FONTS = ['Onest', 'Manrope', 'Unbounded', 'Rubik', 'Nunito', 'Montserrat', 'Golos Text', 'Inter', 'IBM Plex Mono', 'PT Sans', 'PT Serif', 'Comfortaa', 'Russo One', 'Tinos'];
 SD.FONT_WEIGHTS = {
@@ -181,7 +244,10 @@ SD.FORMATS = {
   A6: { name: 'A6', w: 105, h: 148, note: 'открытка, флаер, приглашение' },
   DL: { name: 'Евро (DL)', w: 99, h: 210, note: 'еврофлаер, купон' },
   SQ: { name: 'Квадрат', w: 150, h: 150, note: 'открытка, пост' },
-  SLIDE: { name: 'Слайд 16:9', w: 254, h: 142.875, note: 'презентация, экран', fixedOrient: true }
+  SLIDE: { name: 'Слайд 16:9', w: 254, h: 142.875, note: 'презентация, экран', fixedOrient: true },
+  STORY: { name: 'Сторис 9:16', w: 108, h: 192, note: 'сторис, вертикальное видео', fixedOrient: true },
+  WIDE: { name: 'Баннер 1.91:1', w: 240, h: 125.6, note: 'баннер, обложка ссылки', fixedOrient: true },
+  BIZ: { name: 'Визитка', w: 90, h: 50, note: 'визитка', fixedOrient: true }
 };
 
 SD.KINDS = {
@@ -251,7 +317,7 @@ SD.LAYOUTS = {
   diagonal: { name: 'Плакатный', desc: 'Огромный повёрнутый заголовок' }
 };
 
-SD.MOTIF_NAMES = { dot: 'круг-акцент', block: 'жёлтая плашка', stripe: 'полоса-маркер', blobs: 'градиентные пятна', wave: 'волна снизу', bigdot: 'тире и точка', glow: 'свечение-прожектор', squircle: 'сквирклы', orbit: 'орбиты', dotmatrix: 'точечная матрица', pills: 'пилюли', ring: 'кольцо-градиент', tags: 'ценники', fullgrad: 'градиентная шапка', bigprice: 'жёлтый блок цены' };
+SD.MOTIF_NAMES = { dot: 'круг-акцент', block: 'жёлтая плашка', stripe: 'полоса-маркер', blobs: 'градиентные пятна', wave: 'волна снизу', bigdot: 'тире и точка', glow: 'свечение-прожектор', squircle: 'сквирклы', orbit: 'орбиты', dotmatrix: 'точечная матрица', pills: 'пилюли', ring: 'кольцо-градиент', tags: 'ценники', fullgrad: 'градиентная шапка', bigprice: 'жёлтый блок цены', swissgrid: 'сетка и красный блок', brutal: 'рамки и тень-сдвиг', rainbow: 'радужные дуги', y2k: 'блёстки и пилюля', hanko: 'красная печать', bauhaus: 'круг, квадрат, треугольник' };
 
 // ================== Маркетинг, внимание, цвет, эффекты ==================
 
@@ -271,7 +337,13 @@ SD.KITS = {
   sber:   { effects: ['gradient', 'shadow'], icons: 'soft', pattern: 'none', display: 'card', gradient: 'mesh', note: 'Градиентное кольцо, объёмные карточки, мягкие значки' },
   ozon:   { effects: ['sticker', 'tilt'], icons: 'badge', pattern: 'confetti', display: 'card', note: 'Наклонённые ценники-наклейки, конфетти, карточка со скидкой' },
   wb:     { effects: ['gradient', 'glow'], icons: 'soft', pattern: 'none', display: 'card', gradient: 'mesh', note: 'Градиентная шапка во всю ширину, светящиеся кнопки, карточки' },
-  ikea:   { effects: [], icons: 'bold', pattern: 'none', display: 'hero', gradient: 'none', note: 'Плоские цвета, жёлтый блок с ценой, жирные значки' }
+  ikea:   { effects: [], icons: 'bold', pattern: 'none', display: 'hero', gradient: 'none', note: 'Плоские цвета, жёлтый блок с ценой, жирные значки' },
+  swiss:  { effects: [], icons: 'line', pattern: 'grid', display: 'none', gradient: 'none', note: 'Модульная сетка, тонкие линейки, никаких теней и градиентов' },
+  brutal: { effects: ['hardShadow'], icons: 'square', pattern: 'none', display: 'card', gradient: 'none', note: 'Толстые рамки, жёсткая тень-сдвиг, значки в квадратах' },
+  retro70:{ effects: ['grain'], icons: 'bold', pattern: 'none', display: 'hero', gradient: 'none', note: 'Радужные дуги, зерно старой печати, пухлые значки' },
+  y2k:    { effects: ['glow'], icons: 'badge', pattern: 'confetti', display: 'phone', gradient: 'aurora', note: 'Перламутровая аврора, свечение, блёстки' },
+  japan:  { effects: [], icons: 'line', pattern: 'none', display: 'none', gradient: 'none', note: 'Пустота, тонкие линии, только одна красная печать' },
+  bauhaus:{ effects: [], icons: 'bold', pattern: 'none', display: 'none', gradient: 'none', note: 'Геометрия основных фигур, плоские основные цвета' }
 };
 
 SD.EFFECTS = {

@@ -143,7 +143,7 @@ const { chromium } = require(require('child_process').execSync('npm root -g').to
   await go('auto'); await p.waitForTimeout(400);
   ui.total++;
   await p.locator('#step button', { hasText: 'Подобрать' }).click();
-  try { await p.waitForSelector('#step .thumb', { timeout: 60000 }); } catch (e) { ui.fails.push('автопилот не показал варианты'); }
+  try { await p.waitForSelector('#step .thumb b', { timeout: 60000 }); } catch (e) { ui.fails.push('автопилот не показал варианты'); }
   const scores = await p.evaluate(() => [...document.querySelectorAll('#step .thumb b')].map(x => parseInt(x.textContent)));
   ui.total++;
   if (scores.length < 3) ui.fails.push('меньше трёх вариантов');

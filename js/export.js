@@ -121,5 +121,32 @@ document.body.onclick=function(e){if(e.target.tagName!='BUTTON')g(i+1)};g(0);<\/
     } catch (e) { SD.toast('Не получилось открыть: ' + e.message); }
   }
 
-  return { pdf, images, pptx, htmlDeck, print, saveProject, openProject };
+  // Серия разных форматов: один PDF, у каждой страницы свой размер
+  async function seriesPdf(items) {
+    await SD.u.loadScript(JSPDF);
+    for (const it of items) await SD.render.assetsReady(it.doc);
+    const { jsPDF } = window.jspdf;
+    let pdf = null;
+    for (const it of items) {
+      const d = it.doc, ppm = S.exportOpts.dpi / 25.4;
+      const c = SD.render.pageCanvas(d, d.pages[0], ppm);
+      const o = d.w > d.h ? 'l' : 'p';
+      if (!pdf) pdf = new jsPDF({ orientation: o, unit: 'mm', format: [d.w, d.h], compress: true });
+      else pdf.addPage([d.w, d.h], o);
+      pdf.addImage(c.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, d.w, d.h, undefined, 'FAST');
+    }
+    pdf.setProperties({ title: (S.answers.texts.title || 'Серия') + ' — серия' });
+    pdf.save(baseName() + '-seriya.pdf');
+    SD.toast('Серия готова: ' + items.length + ' форматов');
+  }
+  async function seriesPng(items) {
+    for (const it of items) {
+      await SD.render.assetsReady(it.doc);
+      const c = SD.render.pageCanvas(it.doc, it.doc.pages[0], S.exportOpts.dpi / 25.4);
+      u.download(await toBlob(c, 'image/png'), `${baseName()}-${it.key}.png`);
+      await new Promise(r => setTimeout(r, 250));
+    }
+  }
+
+  return { pdf, images, pptx, htmlDeck, print, saveProject, openProject, seriesPdf, seriesPng };
 })();
