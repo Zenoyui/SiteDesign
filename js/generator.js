@@ -91,7 +91,7 @@ SD.gen = (function () {
     c.accent2 = grad(c.accent, c.onAccent);
     c.icon = u.contrast(c.primary, c.bg) >= 2 ? c.primary : c.text;
     // цвет для текста-акцента (цена): только если читается как текст — от 4,5:1
-    c.ink = u.contrast(c.primary, c.bg) >= 4.5 ? c.primary : u.contrast(c.accent, c.bg) >= 4.5 ? c.accent : c.text;
+    c.ink = u.contrast(c.primary, c.bg) >= 5 ? c.primary : u.contrast(c.accent, c.bg) >= 5 ? c.accent : c.text; // с запасом на сглаживание букв
     return c;
   }
 
@@ -144,7 +144,10 @@ SD.gen = (function () {
       let els;
       if (i === 0) {
         // если текст не влез — уменьшаем кегли и собираем заново
-        ctx.drop = new Set();
+        // крошечный формат (визитка): только имя, подзаголовок и контакты
+        ctx.tiny = ctx.base < 45;
+        ctx.drop = new Set(ctx.tiny ? DROP_ORDER : []);
+        if (ctx.tiny && (DROP_ORDER.some(d => d === 'qr' ? ans.opts.qr : d === 'promo' ? ans.opts.promo : ans.mk && ans.mk[d]) || ans.opts.cta || ans.texts.body)) ctx.notes.push('Формат маленький — оставлены только заголовок, подзаголовок и контакты, как на визитке.');
         let k = 1;
         for (let t = 0; t < 30; t++) {
           ctx.fitK = k; ctx.overflow = false; els = front(ctx);
@@ -155,7 +158,7 @@ SD.gen = (function () {
           if (!next) break;
           ctx.drop.add(next);
         }
-        if (ctx.drop.size) ctx.notes.push('Не хватило места, поэтому убрано: ' + [...ctx.drop].map(d => DROP_NAMES[d]).join(', ') + '. Можно выбрать формат побольше или сократить текст.');
+        if (ctx.drop.size && !ctx.tiny) ctx.notes.push('Не хватило места, поэтому убрано: ' + [...ctx.drop].map(d => DROP_NAMES[d]).join(', ') + '. Можно выбрать формат побольше или сократить текст.');
         if (ctx.overflow) ctx.notes.push('Текст не помещается на лицевую сторону даже в минимальном кегле — сократите текст или выберите формат побольше.');
         ctx.fitK = 1;
       } else els = (ans.kind === 'slides' && i === n - 1 && n > 2) ? finale(ctx) : backSide(ctx, i);
@@ -382,7 +385,6 @@ SD.gen = (function () {
         if (E.has('tilt')) {
           if (el.role === 'cta' || el.role === 'ctaText') el.rot = (el.rot || 0) - 3;
           if (el.role === 'panel' || el.role === 'card') el.rot = (el.rot || 0) - 2;
-          if (el.role === 'urgency') el.rot = (el.rot || 0) - 3;
         }
       }
     }
@@ -677,8 +679,9 @@ SD.gen = (function () {
     const mk0 = ans.mk || {}, T = ans.texts;
     const drop = ctx.drop || new Set();
     const mk = new Proxy(mk0, { get: (o, k) => o[k] && !drop.has(k) });
-    const o = Object.assign({}, ans.opts, { qr: ans.opts.qr && !drop.has('qr'), promo: ans.opts.promo && !drop.has('promo') });
-    const motifs = o.motif ? ctx.v.motifs.slice() : [];
+    const o = Object.assign({}, ans.opts, { qr: ans.opts.qr && !drop.has('qr'), promo: ans.opts.promo && !drop.has('promo'), cta: ans.opts.cta && !ctx.tiny, image: ctx.tiny ? null : ans.opts.image });
+    // на визитке волна слишком тонкая — контакты легли бы на гребень
+    const motifs = o.motif ? ctx.v.motifs.filter(k => !(ctx.tiny && k === 'wave')) : [];
     const has = k => motifs.includes(k);
     const lay = ans.layout || 'top';
     const align = lay === 'center' || lay === 'diagonal' ? 'center' : (ans.align || 'left');
@@ -691,7 +694,7 @@ SD.gen = (function () {
 
     const title = mkTitle(ctx, s), sub = mkSub(ctx, s), body = mkBody(ctx, s);
     const heads = [title, ans.texts.subtitle ? sub : null].filter(Boolean);
-    const bodies = ans.texts.body ? [body] : [];
+    const bodies = ans.texts.body && !ctx.tiny ? [body] : [];
     const eyebrow = mk.urgency && T.urgency ? mkEyebrow(ctx, s) : null;
     if (eyebrow && lay !== 'diagonal') heads.unshift(eyebrow);
     if (mk.benefits) {
@@ -842,7 +845,7 @@ SD.gen = (function () {
     if (mid.some(e => !e.rot && e.type === 'text' && e.y < m * 0.4)) ctx.overflow = true;
 
     // Показ продукта (телефон, круг, карточка, наклейка) — в свободной зоне
-    const disp = ctx.fx.display;
+    const disp = ctx.tiny ? "none" : ctx.fx.display;
     if (disp && disp !== 'none' && zone && ['top', 'left', 'bottom'].includes(lay) && !(o.image && lay !== 'bottom')) {
       const vx = Math.max(zone.x, m * 0.5), vy = Math.max(zone.y, m * 0.5);
       const vz = { x: vx, y: vy, w: Math.min(zone.x + zone.w, W - m * 0.5) - vx, h: Math.min(zone.y + zone.h, limitY) - vy };
@@ -936,7 +939,7 @@ SD.gen = (function () {
     const { ans, W, H, m } = ctx;
     const s = sizes(ctx);
     const o = ans.opts;
-    const motifs = o.motif ? ctx.v.motifs : [];
+    const motifs = o.motif ? ctx.v.motifs.filter(k => !(ctx.base < 45 && k === 'wave')) : [];
     const els = [], back = [];
     const gap = m * 0.5;
     const land = W > H;
@@ -965,12 +968,14 @@ SD.gen = (function () {
       const q = ctx.base * (land ? 0.3 : 0.24);
       const qr = mkQr(ctx, s, W - m - q, land ? (H - q) / 2 : H - m - q - waveH * 0.6, q)[0];
       els.push(qr);
-      const lab = text({ name: 'Подпись QR', role: 'qrLabel', text: 'Наведите камеру', font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), align: 'center', fillRole: 'text', x: qr.x - 5, w: q + 10 });
+      const lab = ctx.base < 45 ? null : text({ name: 'Подпись QR', role: 'qrLabel', text: 'Наведите камеру', font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.small, 1), align: 'center', fillRole: 'text', x: qr.x - 5, w: q + 10 });
       // на волне подпись не читается — ставим её над кодом
-      const below = !waveH && qr.y + q + 1 + lab.h < H - m * 0.5;
+      if (lab) {
+      const below = !waveH && qr.y + q + 1 + lab.h < H - Math.max(m * 0.5, 3.5);
       lab.y = below ? qr.y + q + 1 : qr.y - lab.h - 1;
       lab.pin = { id: qr.id, dx: -5, dy: lab.y - qr.y };
       els.push(lab);
+      }
     }
     // подгонка: заголовок не рвёт слова, подробности не залезают на контакты и QR
     const limitB = Math.min(H - m, ...els.filter(e => e.role === 'contacts' || (e.type === 'qr' && !land)).map(e => e.y)) - gap * 0.5;
