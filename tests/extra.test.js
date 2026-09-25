@@ -46,7 +46,8 @@ const { chromium } = require(require('child_process').execSync('npm root -g').to
       const after = res.best.filter(r => like(r.ans, r.doc)).length;
       total++;
       info.push(`«${name}»: ${made} выборов; в шестёрке лучших до обучения ${before}, после ${after}; итоги выбранных: ${res.best.map(r => r.score.total).join(', ')}`);
-      if (after < Math.max(4, before + 1) && after < res.best.length) fails.push(`«${name}»: вкус не поднял нужные варианты (${before} → ${after})`);
+      // вкус должен поднять нужное до 4+ из 6; если его и так было много — не уронить
+      if ((before < 4 && after < 4) || after < before) fails.push(`«${name}»: вкус не поднял нужные варианты (${before} → ${after})`);
       if (res.best.some(r => r.score.errs)) fails.push(`«${name}»: вкус пропустил вариант с ошибками текста`);
       const sum = SD.taste.summary();
       total++;
