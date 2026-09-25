@@ -220,8 +220,10 @@ SD.wizard = (function () {
     root.append(h('div', { class: 'q' }, 'Вопрос 6. В каком стиле ближе? (можно несколько)'));
     const t = h('table', { class: 'doc' });
     t.append(h('tr', null, h('th', null, '✓'), h('th', null, 'Стиль (похоже на…)'), h('th', null, 'Палитра'), h('th', null, 'Приёмы'), h('th', null, 'Настроение')));
+    let lastGroup = null;
     for (const id of SD.STYLE_ORDER) {
       const s = SD.STYLES[id];
+      if (s.group !== lastGroup) { lastGroup = s.group; t.append(h('tr', null, h('td', { colspan: 5, style: { background: '#F2F2F2', fontWeight: 'bold' } }, SD.STYLE_GROUPS[s.group]))); }
       const on = S.answers.styles.includes(id);
       const tr = h('tr', { class: 'pick' + (on ? ' on' : ''), onclick: () => toggleStyle(id) },
         h('td', { class: 'c' }, h('input', { type: 'checkbox', checked: on, tabindex: -1 })),
@@ -237,6 +239,7 @@ SD.wizard = (function () {
     root.append(h('p', { class: 'note' }, S.answers.styles.length > 1
       ? 'Сейчас в превью: ' + [part('цвета', cur.colorsFrom), part('акцент', cur.accentFrom), part('доп. цвет', cur.extraFrom), part('шрифт', cur.fontFrom), 'декор — ' + (cur.motifFrom || []).map(x => SD.STYLES[x].name).join(', ')].filter(Boolean).join('; ') + '. Другие сочетания — на следующем шаге.'
       : 'Выбран один стиль. Отметьте ещё один или несколько — они смешаются.'));
+    if (S.answers.styles.length > 7) root.append(h('p', { class: 'warn' }, `Выбрано стилей: ${S.answers.styles.length}. В одном макете заметны максимум 7 (цвета, акцент, доп. цвет, шрифт и три декоративных приёма) — сейчас это первые семь по таблице. Остальные участвуют в других сочетаниях на следующем шаге.`));
     root.append(h('div', { class: 'btn-row' },
       h('button', { class: 'btn sm', onclick: () => { S.answers.styles = SD.STYLE_ORDER.slice(); S.answers.variant = 0; S.answers.palette = null; A.regenerate(); render(); } }, 'Выбрать все'),
       h('button', { class: 'btn sm', onclick: () => { S.answers.styles = [S.answers.styles[0] || 'yandex']; S.answers.variant = 0; S.answers.palette = null; A.regenerate(); render(); } }, 'Оставить один')));
@@ -352,7 +355,13 @@ SD.wizard = (function () {
     root.append(h('div', { class: 'btn-row' },
       h('button', { class: 'btn sm', onclick: () => { Object.assign(T, SD.EXAMPLES[S.answers.goal]); if (S.answers.kind === 'menu') T.details = SD.MENU_DETAILS; S.answers.textsEdited = false; A.applySoft('texts'); A.save(); render(); } }, 'Подставить пример'),
       h('button', { class: 'btn sm', onclick: () => { for (const k of ['title', 'subtitle', 'body', 'cta', 'promo', 'contacts', 'details']) T[k] = ''; T.title = 'Заголовок'; S.answers.textsEdited = true; A.applySoft('texts'); A.save(); render(); } }, 'Очистить всё')));
-    root.append(h('div', { class: 'q' }, 'Идеи для заголовка (нажмите, чтобы подставить)'));
+    root.append(h('div', { class: 'q' }, 'Идеи заголовков по маркетинговым формулам'));
+    const it = h('table', { class: 'doc compact' });
+    it.append(h('tr', null, h('th', null, 'Формула'), h('th', null, 'Заголовок для вашей сферы'), h('th', null, '')));
+    for (const [f, txt] of SD.ideaGen(S.answers)) it.append(h('tr', null, h('td', null, f), h('td', null, txt),
+      h('td', { class: 'c' }, h('button', { class: 'btn sm', onclick: () => { T.title = txt; S.answers.textsEdited = true; A.applySoft('texts'); A.save(); render(); } }, 'Взять'))));
+    root.append(it);
+    root.append(h('div', { class: 'q' }, 'Ещё идеи для заголовка (нажмите, чтобы подставить)'));
     const chips = h('div', { class: 'chips' });
     for (const k of Object.keys(SD.IDEAS)) for (const idea of SD.IDEAS[k]) {
       if (k !== S.answers.goal && Math.random() < 0.6) continue;
@@ -419,13 +428,13 @@ SD.wizard = (function () {
     for (const id of SD.STYLE_ORDER) {
       const k = SD.KITS[id];
       kt.append(h('tr', { class: S.answers.styles.includes(id) ? 'on' : '' }, h('td', null, h('b', null, SD.STYLES[id].name), h('br'), h('span', { class: 'note' }, 'как ' + SD.STYLES[id].like)), h('td', null, k.note),
-        h('td', { class: 'c' }, h('button', { class: 'btn sm', onclick: () => setFx({ effects: k.effects.slice(), icons: k.icons, pattern: k.pattern, display: k.display }) }, 'Взять'))));
+        h('td', { class: 'c' }, h('button', { class: 'btn sm', onclick: () => setFx({ effects: k.effects.slice(), icons: k.icons, pattern: k.pattern, display: k.display, gradient: k.gradient || 'auto' }) }, 'Взять'))));
     }
     root.append(kt);
     root.append(h('div', { class: 'btn-row' },
       h('button', { class: 'btn sm primary', onclick: () => {
         const Sx = S.answers.styles, kits = Sx.map(id => SD.KITS[id]);
-        setFx({ effects: Array.from(new Set(kits.flatMap(k => k.effects))), icons: kits[0].icons, pattern: (kits[1] || kits[0]).pattern, display: (kits[2] || kits[0]).display });
+        setFx({ effects: Array.from(new Set(kits.flatMap(k => k.effects))), icons: kits[0].icons, pattern: (kits[1] || kits[0]).pattern, display: (kits[2] || kits[0]).display, gradient: (kits.find(k => k.gradient) || {}).gradient || 'auto' });
       } }, 'Смешать наборы выбранных стилей'),
       h('button', { class: 'btn sm', onclick: () => { S.answers.fx = { auto: true, effects: [], icons: 'soft', pattern: 'none', display: 'none' }; A.regenerate(); A.save(); render(); } }, 'Сбросить (авто)')));
     if (fx.auto) root.append(h('p', { class: 'note' }, 'Сейчас режим «авто»: эффекты и значки берутся от первого выбранного стиля. Любой выбор ниже переключит на ручной.'));

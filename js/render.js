@@ -232,6 +232,14 @@ SD.render = (function () {
         if (i % 3 === 0) { ctx.beginPath(); ctx.arc(0, 0, c * 0.12, 0, Math.PI * 2); ctx.fill(); } else ctx.fillRect(-c * 0.18, -c * 0.06, c * 0.36, c * 0.12);
         ctx.restore();
       }
+    } else if (k === 'dotring') {
+      // круг из точек, как на точечно-матричном экране; одна точка — акцентная
+      const R = Math.min(w, h) / 2, cx = w / 2, cy = h / 2;
+      for (let y = c / 2; y < h; y += c) for (let x = c / 2; x < w; x += c) {
+        const r = Math.hypot(x - cx, y - cy);
+        if (r < R * 0.98 && r > R * 0.55) { ctx.beginPath(); ctx.arc(x, y, c * 0.3, 0, Math.PI * 2); ctx.fill(); }
+      }
+      ctx.fillStyle = col2; ctx.beginPath(); ctx.arc(cx + R * 0.35, cy - R * 0.35, c * 0.9, 0, Math.PI * 2); ctx.fill();
     } else if (k === 'halftone') {
       for (let y = c / 2; y < h + c; y += c) for (let x = c / 2; x < w + c; x += c) {
         const t = SD.u.clamp((x / w + y / h) / 2, 0, 1), r = c * 0.48 * t;

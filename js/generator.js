@@ -27,7 +27,8 @@ SD.gen = (function () {
     return out;
   }
   // Каждый выбранный стиль что-то вносит: цвета, акцент, доп. цвет, шрифт или декор.
-  function mixAll(S) {
+  function mixAll(S0) {
+    const S = S0.slice(0, 7); // в одной смеси заметны не больше 7 стилей
     const n = S.length, nm = id => SD.STYLES[id].name;
     const v = { key: 'mix', title: 'Смесь: ' + S.map(nm).join(' + '), colorsFrom: S[0], accentFrom: S[1], fontFrom: S[n - 1], invert: false };
     if (n >= 4) v.extraFrom = S[2];
@@ -102,8 +103,8 @@ SD.gen = (function () {
       sw: SD.nearWeight(font, Math.min(fs.titleWeight, 600)),
       upper: fs.upper,
       radiusK: cs.radius * (ans.opts.rounded == null ? 1 : ans.opts.rounded),
-      pill: ['go', 'urent', 'bk'].includes(v.colorsFrom),
-      ctaRole: v.colorsFrom === 'go' && !v.invert ? 'accent' : 'primary'
+      pill: cs.pill || ['go', 'urent', 'bk'].includes(v.colorsFrom),
+      ctaRole: !v.invert && (v.colorsFrom === 'go' || cs.ctaRole === 'accent') ? 'accent' : 'primary'
     };
   }
 
@@ -394,7 +395,7 @@ SD.gen = (function () {
   // ---------- Градиент: нужен ли и какой ----------
   // Правила собраны из исследований восприятия (см. SD.GRADIENT_RULES в brands.js).
   const GRAD_IND = { finance: 2, event: 2, beauty: 2, kids: 1, transport: 1, premium: 1, education: 1, delivery: 0, coffee: 0, food: 0, retail: -1, eco: -2 };
-  const GRAD_STYLE = { urent: 2, yandex: 0, go: -1, bk: -1, whoosh: -2, vit: -2 };
+  const GRAD_STYLE = { urent: 2, yandex: 0, go: -1, bk: -1, whoosh: -2, vit: -2, apple: 1, xiaomi: -1, samsung: 2, nothing: -3, pixel: 0, sber: 3, ozon: 0, wb: 3, ikea: -3 };
   function surfaces(doc, ctx) {
     const A = ctx.W * ctx.H;
     const list = [];
@@ -486,12 +487,15 @@ SD.gen = (function () {
     const eff = k0.effects.slice();
     if (k1 && k1.effects[0] && !eff.includes(k1.effects[0])) eff.push(k1.effects[0]);
     return { auto: true, effects: eff, icons: k0.icons, pattern: 'none', display: 'none', gradient: 'auto' };
+    // подсказка набора (например, «Минималистичный» любит радиальное свечение) учитывается правилами градиента
   }
 
 
   // ---------- Мотивы стилей (все — обычные редактируемые элементы) ----------
   function motif(ctx, kind, z, roles) {
     const out = motifRaw(ctx, kind, z, roles);
+    const grp = u.uid();
+    for (const e of out) e.grp = grp; // части одного мотива двигаются вместе
     // декор не выходит из своей зоны влево — туда, где текст
     if (z && kind !== 'wave' && kind !== 'stripe') for (const e of out) if (e.x < z.x) e.x = z.x;
     if (z && kind === 'bigdot' && out.length === 2 && out[1].x < z.x) { const [dot, dash] = out; dash.x = dot.x; dash.y = dot.y + dot.h + dash.h; dash.w = Math.min(dash.w, dot.w); }
@@ -542,6 +546,63 @@ SD.gen = (function () {
         out.push(base({ type: 'ellipse', name: 'Точка', role: 'decor', x: cx, y: cy, w: d, h: d, fillRole: second === 'accent' ? 'accent' : second }));
         const dw = d * 0.95, dh = d * 0.22;
         out.push(base({ name: 'Тире', role: 'decor', x: cx - dw - d * 0.22, y: cy + (d - dh) / 2, w: dw, h: dh, radius: dh / 2, fillRole: roles.dash || 'extra' }));
+        break;
+      }
+      case 'glow': {
+        // мягкое свечение-прожектор из нескольких полупрозрачных кругов
+        const d = d0 * 1.1, cx = z.x + z.w / 2, cy = z.y + z.h / 2;
+        for (const [k, a] of [[1, 0.12], [0.72, 0.16], [0.46, 0.22]]) out.push(base({ type: 'ellipse', name: 'Свечение', role: 'decor', x: cx - d * k / 2, y: cy - d * k / 2, w: d * k, h: d * k, fillRole: 'accent', opacity: a }));
+        break;
+      }
+      case 'squircle': {
+        const d = d0 * 0.8;
+        out.push(base({ name: 'Сквиркл', role: 'decor', x: z.x + z.w - d, y: z.y + (z.h - d) / 2, w: d, h: d, radius: d * 0.3, fillRole: main }));
+        out.push(base({ name: 'Малый сквиркл', role: 'decor', x: z.x + z.w - d * 1.2, y: z.y + (z.h + d) / 2 - d * 0.32, w: d * 0.34, h: d * 0.34, radius: d * 0.1, fillRole: second }));
+        break;
+      }
+      case 'orbit': {
+        const d = d0 * 1.05, cx = z.x + z.w - d / 2, cy = z.y + z.h / 2, sw = Math.max(0.4, d * 0.012);
+        out.push(base({ type: 'ellipse', name: 'Орбита', role: 'decor', x: cx - d / 2, y: cy - d / 2, w: d, h: d, fill: 'none', stroke: '#000', strokeRole: main, strokeW: sw }));
+        out.push(base({ type: 'ellipse', name: 'Орбита малая', role: 'decor', x: cx - d * 0.33, y: cy - d * 0.33, w: d * 0.66, h: d * 0.66, fill: 'none', stroke: '#000', strokeRole: second, strokeW: sw }));
+        out.push(base({ type: 'ellipse', name: 'Спутник', role: 'decor', x: cx + d * 0.35 - d * 0.06, y: cy - d * 0.35 - d * 0.06, w: d * 0.12, h: d * 0.12, fillRole: main }));
+        break;
+      }
+      case 'dotmatrix': {
+        const d = d0 * 0.95;
+        out.push(base({ type: 'pattern', name: 'Точечная матрица', role: 'decor', kind: 'dotring', cell: u.round(d / 16, 2), x: z.x + z.w - d, y: z.y + (z.h - d) / 2, w: d, h: d, fillRole: 'text', fill2Role: 'accent' }));
+        break;
+      }
+      case 'pills': {
+        const pw = d0 * 1.0, ph = d0 * 0.28, x0 = z.x + z.w - pw * 0.9;
+        [['primary', 0], ['accent', 1], ['extra', 2]].forEach(([role, i]) => out.push(base({ name: 'Пилюля', role: 'decor', x: x0 - i * ph * 0.35, y: z.y + z.h * 0.1 + i * ph * 1.15, w: pw * (1 - i * 0.15), h: ph, radius: ph / 2, rot: -18, fillRole: role })));
+        break;
+      }
+      case 'ring': {
+        const d = d0 * 0.95, sw = d * 0.13;
+        const r = base({ type: 'ellipse', name: 'Кольцо', role: 'decor', x: z.x + z.w - d, y: z.y + (z.h - d) / 2, w: d, h: d, fillRole: main });
+        r.gradType = 'mesh'; r.gradSeed = 5;
+        const hole = base({ type: 'ellipse', name: 'Кольцо (внутри)', role: 'decor', x: r.x + sw, y: r.y + sw, w: d - sw * 2, h: d - sw * 2, fillRole: 'bg' });
+        out.push(r, hole);
+        break;
+      }
+      case 'tags': {
+        const tw = d0 * 0.75, th = d0 * 0.42;
+        [['primary', -14, 0], ['accent', 9, 1]].forEach(([role, rot, i]) => {
+          const x = z.x + z.w - tw - i * tw * 0.35, y = z.y + z.h * 0.12 + i * th * 0.9;
+          out.push(base({ name: 'Ценник', role: 'decor', x, y, w: tw, h: th, radius: th * 0.18, rot, fillRole: role }));
+          out.push(base({ type: 'ellipse', name: 'Дырочка ценника', role: 'decor', x: x + tw * 0.08, y: y + th / 2 - th * 0.08, w: th * 0.16, h: th * 0.16, rot, fillRole: 'bg' }));
+        });
+        break;
+      }
+      case 'fullgrad': {
+        const g = base({ name: 'Градиентная шапка', role: 'decor', x: z.x, y: z.y, w: z.w, h: z.h, radius: Math.min(z.w, z.h) * 0.08, fillRole: main });
+        g.gradType = 'mesh'; g.gradSeed = 9;
+        out.push(g);
+        break;
+      }
+      case 'bigprice': {
+        const bw = Math.min(z.w, d0 * 1.4), bh = Math.min(z.h, bw * 0.55);
+        out.push(base({ name: 'Жёлтый блок', role: 'decor', x: z.x + z.w - bw, y: z.y + (z.h - bh) / 2, w: bw, h: bh, rot: -3, fillRole: second === 'accent' ? 'accent' : second }));
         break;
       }
     }
@@ -789,7 +850,11 @@ SD.gen = (function () {
   // Декор, который сливается с текстом поверх него, уменьшаем и сдвигаем к краю; не помогло — убираем
   function avoidDecor(ctx, back, front) {
     const texts = front.filter(e => e.type === 'text' && String(e.text || '').trim()).map(e => ({ e, b: u.aabb(e) }));
-    const col = el => ctx.pal[el.fillRole] || el.fill;
+    // видимый цвет декора: обводка для контурных фигур, с учётом прозрачности
+    const col = el => {
+      const c = (!el.fill || el.fill === 'none') ? (ctx.pal[el.strokeRole] || el.stroke || ctx.pal.bg) : (ctx.pal[el.fillRole] || el.fill);
+      return (el.opacity != null && el.opacity < 1) ? u.mix(ctx.pal.bg, c, el.opacity) : c;
+    };
     const bad = d => {
       const db = u.aabb(d);
       return texts.some(({ e, b }) => {
@@ -800,15 +865,26 @@ SD.gen = (function () {
         return Math.min(u.contrast(tc, col(d)), c2 ? u.contrast(tc, c2) : 99) < 4.5 && (w * h) / (b.w * b.h) > 0.02;
       });
     };
-    for (let i = back.length - 1; i >= 0; i--) {
-      const d = back[i];
-      if (d.role !== 'decor' || ['wave', 'pattern'].includes(d.type) || d.w >= ctx.W * 0.95) continue;
-      for (let t = 0; t < 5 && bad(d); t++) {
-        // сжимаем к дальнему от центра листа углу
-        const cx = d.x + d.w / 2 > ctx.W / 2 ? d.x + d.w : d.x, cy = d.y + d.h / 2 > ctx.H / 2 ? d.y + d.h : d.y;
-        d.x = cx + (d.x - cx) * 0.75; d.y = cy + (d.y - cy) * 0.75; d.w *= 0.75; d.h *= 0.75;
+    // группы: части одного мотива сдвигаются и уменьшаются вместе
+    const groups = [];
+    const byGrp = {};
+    for (const d of back) {
+      if (d.role !== 'decor' || d.type === 'wave' || (d.type === 'pattern' && d.role === 'pattern') || d.w >= ctx.W * 0.95) continue;
+      const key = d.grp || d.id;
+      if (!byGrp[key]) { byGrp[key] = []; groups.push(byGrp[key]); }
+      byGrp[key].push(d);
+    }
+    for (const g of groups) {
+      const badG = () => g.some(bad);
+      for (let t = 0; t < 5 && badG(); t++) {
+        const bb = u.unionBox(g.map(e => ({ x: e.x, y: e.y, w: e.w, h: e.h })));
+        const cx = bb.x + bb.w / 2 > ctx.W / 2 ? bb.x + bb.w : bb.x, cy = bb.y + bb.h / 2 > ctx.H / 2 ? bb.y + bb.h : bb.y;
+        for (const d of g) {
+          d.x = cx + (d.x - cx) * 0.75; d.y = cy + (d.y - cy) * 0.75; d.w *= 0.75; d.h *= 0.75;
+          if (d.radius) d.radius *= 0.75; if (d.strokeW) d.strokeW *= 0.75; if (d.cell) d.cell *= 0.75;
+        }
       }
-      if (bad(d)) back.splice(i, 1);
+      if (badG()) for (const d of g) back.splice(back.indexOf(d), 1);
     }
   }
 

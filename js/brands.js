@@ -65,13 +65,109 @@ SD.STYLES = {
     mood: 'Просто, по-домашнему, уверенно'
   }
 };
-SD.STYLE_ORDER = ['yandex', 'go', 'whoosh', 'urent', 'bk', 'vit'];
+// Смартфоны и техника
+Object.assign(SD.STYLES, {
+  apple: {
+    id: 'apple', name: 'Минималистичный', like: 'Apple', group: 'tech',
+    about: 'Продукт — главный герой: много воздуха, крупный спокойный заголовок по центру, одна синяя ссылка-кнопка, мягкое свечение вокруг товара.',
+    colors: { primary: '#1D1D1F', accent: '#0A6FD8', bg: '#FBFBFD', text: '#1D1D1F', soft: '#F0F0F4' },
+    original: 'почти чёрный, белый, фирменный синий для ссылок',
+    font: 'Inter', fontNote: 'Inter вместо фирменного SF Pro',
+    titleWeight: 700, bodyWeight: 400, radius: 0.07, upper: false, ctaRole: 'accent', pill: true,
+    motif: 'glow', shapes: 'Свечение-прожектор за продуктом, центрированная композиция, кнопки-таблетки',
+    mood: 'Премиально, тихо, уверенно'
+  },
+  xiaomi: {
+    id: 'xiaomi', name: 'Сквиркл', like: 'Xiaomi', group: 'tech',
+    about: 'Яркий оранжевый и «сквиркл» — квадрат с плавно скруглёнными углами; технологично, но дружелюбно и доступно.',
+    colors: { primary: '#FF6B14', accent: '#1F1F1F', bg: '#FFFFFF', text: '#1F1F1F', soft: '#F4F4F4' },
+    original: 'оранжевый #FF6900, чёрный, белый',
+    font: 'Onest', fontNote: 'Onest вместо фирменного MiSans',
+    titleWeight: 700, bodyWeight: 400, radius: 0.12, upper: false,
+    motif: 'squircle', shapes: 'Сквирклы, плотные оранжевые плашки, крупные цифры характеристик',
+    mood: 'Технологично, бодро, выгодно'
+  },
+  samsung: {
+    id: 'samsung', name: 'Орбитальный', like: 'Samsung', group: 'tech',
+    about: 'Глубокий синий, тонкие орбиты и дуги, крупные скруглённые карточки как в One UI, чистая типографика.',
+    colors: { primary: '#1934A6', accent: '#8FB2FF', bg: '#FFFFFF', text: '#0B1233', soft: '#EDF1FC' },
+    original: 'тёмно-синий #1428A0, белый, голубые акценты',
+    font: 'Golos Text', fontNote: 'Golos Text вместо SamsungOne',
+    titleWeight: 700, bodyWeight: 400, radius: 0.1, upper: false,
+    motif: 'orbit', shapes: 'Тонкие орбиты-кольца, большие карточки, голубое свечение',
+    mood: 'Надёжно, инженерно, современно'
+  },
+  nothing: {
+    id: 'nothing', name: 'Точечно-матричный', like: 'Nothing', group: 'tech',
+    about: 'Монохром: белое, чёрное и один красный акцент; точечно-матричная графика, моноширинный шрифт, всё в духе прозрачной техники.',
+    colors: { primary: '#111111', accent: '#D2231F', bg: '#F3F3F1', text: '#111111', soft: '#E4E4E1' },
+    original: 'чёрный, белый, красный, точки-матрица',
+    font: 'IBM Plex Mono', fontNote: 'IBM Plex Mono вместо фирменного точечного шрифта',
+    titleWeight: 600, bodyWeight: 400, radius: 0.02, upper: true,
+    motif: 'dotmatrix', shapes: 'Круги из точек, тонкие линии, красная точка-акцент',
+    mood: 'Дерзко, по-инженерски, «не как все»'
+  },
+  pixel: {
+    id: 'pixel', name: 'Пастельный', like: 'Google Pixel', group: 'tech',
+    about: 'Material You: мягкие пастельные цвета, подобранные друг к другу, пилюли и круглые формы, дружелюбная округлая типографика.',
+    colors: { primary: '#4466D4', accent: '#FFC7A6', bg: '#FFFBF6', text: '#1F1B16', soft: '#E9E6F7', extra: '#B7DEC6' },
+    original: 'пастельная палитра из обоев, синий, персиковый, мятный',
+    font: 'Rubik', fontNote: 'Rubik вместо Google Sans',
+    titleWeight: 600, bodyWeight: 400, radius: 0.16, upper: false, pill: true,
+    motif: 'pills', shapes: 'Цветные пилюли, большие скругления, пастельные плашки',
+    mood: 'Мягко, по-человечески, заботливо'
+  },
+  // Банки, маркетплейсы, ретейл
+  sber: {
+    id: 'sber', name: 'Кольцевой', like: 'Сбер', group: 'retail',
+    about: 'Зелёный с переходом в бирюзовый, крупные кольца и дуги, объёмные градиенты, спокойная уверенная типографика.',
+    colors: { primary: '#1A9A3E', accent: '#23C9B8', bg: '#FFFFFF', text: '#10261A', soft: '#E8F5EC' },
+    original: 'зелёный #21A038 с градиентом в бирюзовый и голубой',
+    font: 'Onest', fontNote: 'Onest вместо SB Sans',
+    titleWeight: 700, bodyWeight: 400, radius: 0.1, upper: false,
+    motif: 'ring', shapes: 'Кольцо-градиент, мягкие карточки, дуги',
+    mood: 'Надёжно, масштабно, «экосистема»'
+  },
+  ozon: {
+    id: 'ozon', name: 'Ценники', like: 'Ozon', group: 'retail',
+    about: 'Насыщенный синий и яркий розовый акцент, наклонённые ценники и плашки со скидкой, энергия распродажи.',
+    colors: { primary: '#0A5CF5', accent: '#F5185C', bg: '#FFFFFF', text: '#0B1733', soft: '#ECF2FF' },
+    original: 'синий #005BFF, розовый, белый',
+    font: 'Rubik', fontNote: 'Rubik — округлый гротеск',
+    titleWeight: 700, bodyWeight: 400, radius: 0.08, upper: false, pill: true,
+    motif: 'tags', shapes: 'Наклонённые ценники, плашки скидок, конфетти',
+    mood: 'Быстро, выгодно, празднично'
+  },
+  wb: {
+    id: 'wb', name: 'Фуксия', like: 'Wildberries', group: 'retail',
+    about: 'Градиент фуксии в глубокий фиолетовый на всю плашку, белый текст, яркие бейджи — «витрина» маркетплейса.',
+    colors: { primary: '#A8179F', accent: '#4C1579', bg: '#FFFFFF', text: '#24102E', soft: '#F6EBF6' },
+    original: 'фуксия #CB11AB → фиолетовый #481173',
+    font: 'Montserrat', fontNote: 'Montserrat ExtraBold',
+    titleWeight: 800, bodyWeight: 400, radius: 0.08, upper: false, pill: true,
+    motif: 'fullgrad', shapes: 'Большая градиентная шапка, белые карточки, бейджи',
+    mood: 'Ярко, модно, много выбора'
+  },
+  ikea: {
+    id: 'ikea', name: 'Шведский', like: 'IKEA', group: 'retail',
+    about: 'Синий и жёлтый, огромная цена или слово на жёлтом блоке, простые шрифты без украшений, функциональная ясность.',
+    colors: { primary: '#0E5AA2', accent: '#FFD80F', bg: '#FFFFFF', text: '#111111', soft: '#EDF2F8' },
+    original: 'синий #0058A3 и жёлтый #FFDB00',
+    font: 'PT Sans', fontNote: 'PT Sans вместо Noto IKEA',
+    titleWeight: 700, bodyWeight: 400, radius: 0.015, upper: false,
+    motif: 'bigprice', shapes: 'Крупный жёлтый блок с ценой, строгая сетка, плоские цвета',
+    mood: 'Практично, честно, по-домашнему'
+  }
+});
+for (const id of ['yandex', 'go', 'whoosh', 'urent', 'bk', 'vit']) SD.STYLES[id].group = 'service';
+SD.STYLE_GROUPS = { service: 'Сервисы и еда', tech: 'Смартфоны и техника', retail: 'Банки, маркетплейсы, ретейл' };
+SD.STYLE_ORDER = ['yandex', 'go', 'whoosh', 'urent', 'bk', 'vit', 'apple', 'xiaomi', 'samsung', 'nothing', 'pixel', 'sber', 'ozon', 'wb', 'ikea'];
 
-SD.FONTS = ['Onest', 'Manrope', 'Unbounded', 'Rubik', 'Nunito', 'Montserrat', 'Golos Text', 'PT Serif', 'Comfortaa', 'Russo One', 'Tinos'];
+SD.FONTS = ['Onest', 'Manrope', 'Unbounded', 'Rubik', 'Nunito', 'Montserrat', 'Golos Text', 'Inter', 'IBM Plex Mono', 'PT Sans', 'PT Serif', 'Comfortaa', 'Russo One', 'Tinos'];
 SD.FONT_WEIGHTS = {
   'Onest': [400, 500, 700, 800], 'Manrope': [400, 600, 800], 'Unbounded': [400, 600, 800], 'Rubik': [400, 500, 700, 900],
   'Nunito': [400, 700, 900], 'Montserrat': [400, 600, 800], 'Golos Text': [400, 600, 800], 'PT Serif': [400, 700],
-  'Comfortaa': [400, 700], 'Russo One': [400], 'Tinos': [400, 700]
+  'Comfortaa': [400, 700], 'Russo One': [400], 'Tinos': [400, 700], 'Inter': [400, 600, 700, 800], 'IBM Plex Mono': [400, 600], 'PT Sans': [400, 700]
 };
 SD.nearWeight = function (font, w) {
   const list = SD.FONT_WEIGHTS[font] || [400, 700];
@@ -155,7 +251,7 @@ SD.LAYOUTS = {
   diagonal: { name: 'Плакатный', desc: 'Огромный повёрнутый заголовок' }
 };
 
-SD.MOTIF_NAMES = { dot: 'круг-акцент', block: 'жёлтая плашка', stripe: 'полоса-маркер', blobs: 'градиентные пятна', wave: 'волна снизу', bigdot: 'тире и точка' };
+SD.MOTIF_NAMES = { dot: 'круг-акцент', block: 'жёлтая плашка', stripe: 'полоса-маркер', blobs: 'градиентные пятна', wave: 'волна снизу', bigdot: 'тире и точка', glow: 'свечение-прожектор', squircle: 'сквирклы', orbit: 'орбиты', dotmatrix: 'точечная матрица', pills: 'пилюли', ring: 'кольцо-градиент', tags: 'ценники', fullgrad: 'градиентная шапка', bigprice: 'жёлтый блок цены' };
 
 // ================== Маркетинг, внимание, цвет, эффекты ==================
 
@@ -166,7 +262,16 @@ SD.KITS = {
   whoosh: { effects: ['hardShadow'], icons: 'square', pattern: 'stripes', display: 'phone', note: 'Плоская графика, жёсткая тень-сдвиг, диагональные полосы, значки в квадратах, телефон' },
   urent:  { effects: ['gradient', 'glow'], icons: 'soft', pattern: 'confetti', display: 'phone', note: 'Градиенты фиолетового, свечение кнопок, конфетти, мягкие значки' },
   bk:     { effects: ['sticker', 'tilt', 'grain'], icons: 'bold', pattern: 'halftone', display: 'hero', note: 'Наклейки с белой обводкой, наклонённые плашки, зерно печати, растровые точки, жирные значки' },
-  vit:    { effects: [], icons: 'ring', pattern: 'dots', display: 'circle', note: 'Плоско и спокойно, точечный узор, еда в круге, тонкие значки в кольце' }
+  vit:    { effects: [], icons: 'ring', pattern: 'dots', display: 'circle', note: 'Плоско и спокойно, точечный узор, еда в круге, тонкие значки в кольце' },
+  apple:  { effects: ['shadow'], icons: 'line', pattern: 'none', display: 'phone', gradient: 'radial', note: 'Продукт в центре с мягким свечением, тонкие значки, много воздуха' },
+  xiaomi: { effects: ['shadow'], icons: 'square', pattern: 'none', display: 'phone', note: 'Сквирклы, значки в скруглённых квадратах, телефон крупно' },
+  samsung:{ effects: ['shadow', 'glow'], icons: 'soft', pattern: 'none', display: 'phone', gradient: 'aurora', note: 'Орбиты, мягкое голубое свечение, большие карточки' },
+  nothing:{ effects: [], icons: 'ring', pattern: 'dots', display: 'phone', gradient: 'none', note: 'Монохром, точечная матрица, моноширинный шрифт, красная точка' },
+  pixel:  { effects: ['shadow'], icons: 'badge', pattern: 'none', display: 'phone', note: 'Пастельные пилюли, значки в цветных кругах, мягкие тени' },
+  sber:   { effects: ['gradient', 'shadow'], icons: 'soft', pattern: 'none', display: 'card', gradient: 'mesh', note: 'Градиентное кольцо, объёмные карточки, мягкие значки' },
+  ozon:   { effects: ['sticker', 'tilt'], icons: 'badge', pattern: 'confetti', display: 'card', note: 'Наклонённые ценники-наклейки, конфетти, карточка со скидкой' },
+  wb:     { effects: ['gradient', 'glow'], icons: 'soft', pattern: 'none', display: 'card', gradient: 'mesh', note: 'Градиентная шапка во всю ширину, светящиеся кнопки, карточки' },
+  ikea:   { effects: [], icons: 'bold', pattern: 'none', display: 'hero', gradient: 'none', note: 'Плоские цвета, жёлтый блок с ценой, жирные значки' }
 };
 
 SD.EFFECTS = {
@@ -334,3 +439,38 @@ SD.BRAIN_SOURCES = [
   ['Ou & Luo, 2006; Palmer & Schloss, 2010', 'Гармоничнее близкие оттенки; цвета любят по ассоциациям', 'Критерий «Гармония цвета», палитры по сферам'],
   ['Ottosson, 2020 (OKLab)', 'В перцептивном пространстве переходы цвета ровные', 'Градиенты в OKLCH без серой середины']
 ];
+
+// Данные для генератора идей заголовков: боль клиента, продукт, действие
+SD.IDEA_DATA = {
+  transport: { free: 'Первая поездка — бесплатно', proof: 'Нас выбрали 120 000 горожан', how: 'Как доехать до метро за 5 минут', pain: 'Опаздываете', noun: 'поездка', action: 'Доезжайте', fast: 'за 5 минут', num: '3000 самокатов' },
+  food: { free: 'Второй бургер — в подарок', proof: 'Каждый день нас выбирают 3000 гостей', how: 'Как пообедать за 10 минут', pain: 'Проголодались', noun: 'бургер', action: 'Попробуйте', fast: 'за 5 минут', num: '40 блюд' },
+  coffee: { free: 'Первый кофе — за наш счёт', proof: 'Каждое утро у нас 500 гостей', how: 'Как проснуться без будильника', pain: 'Не хватает бодрости', noun: 'кофе', action: 'Заходите', fast: 'за 3 минуты', num: '12 видов кофе' },
+  delivery: { free: 'Первая доставка — бесплатно', proof: 'Нам доверили уже миллион заказов', how: 'Как не тратить выходные на магазины', pain: 'Некогда в магазин', noun: 'доставка', action: 'Закажите', fast: 'за 30 минут', num: '10 000 товаров' },
+  retail: { free: 'Подарок к каждой покупке', proof: 'Нас выбрали 50 000 покупателей', how: 'Как одеться к сезону и не переплатить', pain: 'Надоело переплачивать', noun: 'покупка', action: 'Выбирайте', fast: 'за один визит', num: '5000 товаров' },
+  beauty: { free: 'Первая консультация — бесплатно', proof: '98% гостей возвращаются снова', how: 'Как выглядеть отдохнувшей за час', pain: 'Хочется отдохнуть от забот', noun: 'процедура', action: 'Запишитесь', fast: 'за минуту онлайн', num: '15 мастеров' },
+  education: { free: 'Первое занятие — бесплатно', proof: '2000 выпускников уже работают по профессии', how: 'Как сменить профессию за 3 месяца', pain: 'Хотите новую профессию', noun: 'урок', action: 'Начните', fast: 'за 3 месяца', num: '2000 выпускников' },
+  event: { free: 'Вход — свободный', proof: 'В прошлом году пришли 12 000 гостей', how: 'Как провести субботу, чтобы запомнилась', pain: 'Не знаете, куда пойти', noun: 'вечер', action: 'Приходите', fast: 'в эту субботу', num: '40 артистов' },
+  finance: { free: 'Обслуживание — бесплатно навсегда', proof: 'Нам доверяет 1 миллион клиентов', how: 'Как перестать платить комиссии', pain: 'Устали от комиссий', noun: 'перевод', action: 'Откройте счёт', fast: 'за 5 минут', num: '1 млн клиентов' },
+  eco: { free: 'Первая корзина — с подарком', proof: 'Нас выбирают 5000 семей', how: 'Как есть вкусно и без химии', pain: 'Надоела химия в продуктах', noun: 'урожай', action: 'Попробуйте', fast: 'с доставкой завтра', num: '30 ферм' },
+  kids: { free: 'Детям до 3 лет — бесплатно', proof: 'Здесь отпраздновали 1000 дней рождения', how: 'Как устроить праздник без хлопот', pain: 'Ребёнку скучно', noun: 'праздник', action: 'Приводите детей', fast: 'на целый день', num: '100 игр' },
+  premium: { free: 'Гравировка — в подарок', proof: 'Лимитированная серия — 50 экземпляров', how: 'Как выбрать подарок, который запомнят', pain: 'Ищете особенный подарок', noun: 'коллекция', action: 'Откройте', fast: 'только сейчас', num: '50 экземпляров' }
+};
+SD.ideaGen = function (ans) {
+  const d = SD.IDEA_DATA[ans.industry] || SD.IDEA_DATA.transport;
+  const b = (SD.INDUSTRIES[ans.industry] || SD.INDUSTRIES.transport).benefits;
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  return [
+    ['Выгода + скорость', `${cap(d.noun)} ${d.fast}`],
+    ['Проблема → решение', `${d.pain}? ${b[0]}`],
+    ['Вопрос', `${d.pain}?`],
+    ['Число и конкретика', `${cap(d.num)} рядом с вами`],
+    ['Бесплатно', d.free],
+    ['Срочность', `Только до воскресенья: −30%`],
+    ['Социальное доказательство', d.proof],
+    ['Призыв к действию', `${d.action} ${d.fast}`],
+    ['Как…', d.how],
+    ['Три причины', `3 причины выбрать нас`],
+    ['Эмоция', `Жизнь стала проще`],
+    ['Новинка', `Новое: ${b[1].charAt(0).toLowerCase() + b[1].slice(1)}`]
+  ];
+};

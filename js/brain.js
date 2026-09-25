@@ -179,7 +179,7 @@ SD.brain = (function () {
       if (!keep.fx) {
         const kit = pick(kits);
         a.fx = { auto: false, effects: rnd() < 0.5 ? kit.effects.filter(e => e !== 'gradient') : (a.fx && a.fx.effects ? a.fx.effects : []), icons: kit.icons,
-          pattern: rnd() < 0.25 ? kit.pattern : 'none', display: rnd() < 0.5 ? kit.display : 'none', gradient: pick(['auto', 'auto', 'none', 'mesh', 'linear']) };
+          pattern: rnd() < 0.25 ? kit.pattern : 'none', display: rnd() < 0.5 ? kit.display : 'none', gradient: pick(['auto', 'auto', 'none', 'mesh', 'linear', kit.gradient || 'auto']) };
       }
       const key = JSON.stringify([a.variant, a.layout, a.align, a.titleScale, a.fx]);
       if (seen.has(key)) continue;
