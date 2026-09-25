@@ -59,7 +59,8 @@ SD.render = (function () {
     return t;
   }
   function prepText(el) {
-    const t = el.upper ? String(el.text || '').toUpperCase() : String(el.text || '');
+    const raw = String(el.text || '') + (String(el.text || '').trim() ? (el.suffix || '') : '');
+    const t = el.upper ? raw.toUpperCase() : raw;
     return el.typo === false ? t : typo(t);
   }
 

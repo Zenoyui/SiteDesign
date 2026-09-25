@@ -11,7 +11,7 @@ SD.taste = (function () {
   // Признаки варианта: стиль, шрифт, приёмы, раскладка, эффекты, градиент, светлый/тёмный фон
   function features(ans, doc) {
     const f = {};
-    const v = SD.gen.variants(ans.styles)[ans.variant] || {};
+    const v = SD.gen.variants(ans.styles, ans.fidelity)[ans.variant] || {};
     if (v.colorsFrom) f['style:' + v.colorsFrom] = 1;
     if (v.fontFrom) f['font:' + SD.STYLES[v.fontFrom].font] = 1;
     for (const m of v.motifs || []) f['motif:' + m] = 1;

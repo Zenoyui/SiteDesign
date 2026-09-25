@@ -234,6 +234,11 @@ SD.wizard = (function () {
       t.append(tr);
     }
     root.append(h('div', { class: 'cap' }, 'Таблица 6. Анализ стилей'), t);
+    root.append(h('div', { class: 'q' }, 'Вопрос. Насколько близко к стилю компании?'));
+    root.append(...radioTable('Таблица. Похожесть', ['Режим', 'Что получится'], [
+      { key: 'brand', cells: ['Как если бы делала компания', 'Композиция, фон, типографика, кнопка, бейдж, поля и «штучки» — в манере выбранного стиля (у каждого по два образа). Логотипы и названия не используются.'] },
+      { key: 'free', cells: ['Свободно', 'От стиля берутся только цвета, шрифт и декор, остальное — общая раскладка. Больше простора, меньше похожести.'] }
+    ], S.answers.fidelity || 'brand', k => { S.answers.fidelity = k; S.answers.variant = 0; SD.applyLook(S.answers); A.regenerate(); A.save(); render(); }));
     const cur = A.variant();
     const part = (label, id) => id ? `${label} — ${SD.STYLES[id].name}` : null;
     root.append(h('p', { class: 'note' }, S.answers.styles.length > 1
@@ -241,8 +246,8 @@ SD.wizard = (function () {
       : 'Выбран один стиль. Отметьте ещё один или несколько — они смешаются.'));
     if (S.answers.styles.length > 7) root.append(h('p', { class: 'warn' }, `Выбрано стилей: ${S.answers.styles.length}. В одном макете заметны максимум 7 (цвета, акцент, доп. цвет, шрифт и три декоративных приёма) — сейчас это первые семь по таблице. Остальные участвуют в других сочетаниях на следующем шаге.`));
     root.append(h('div', { class: 'btn-row' },
-      h('button', { class: 'btn sm', onclick: () => { S.answers.styles = SD.STYLE_ORDER.slice(); S.answers.variant = 0; S.answers.palette = null; A.regenerate(); render(); } }, 'Выбрать все'),
-      h('button', { class: 'btn sm', onclick: () => { S.answers.styles = [S.answers.styles[0] || 'yandex']; S.answers.variant = 0; S.answers.palette = null; A.regenerate(); render(); } }, 'Оставить один')));
+      h('button', { class: 'btn sm', onclick: () => { S.answers.styles = SD.STYLE_ORDER.slice(); S.answers.variant = 0; S.answers.palette = null; SD.applyLook(S.answers); A.regenerate(); render(); } }, 'Выбрать все'),
+      h('button', { class: 'btn sm', onclick: () => { S.answers.styles = [S.answers.styles[0] || 'yandex']; S.answers.variant = 0; S.answers.palette = null; SD.applyLook(S.answers); A.regenerate(); render(); } }, 'Оставить один')));
 
     const t2 = h('table', { class: 'doc compact' });
     t2.append(h('tr', null, h('th', null, 'Бренд'), h('th', null, 'Как в оригинале'), h('th', null, 'Что берём'), h('th', null, 'Что меняем')));
@@ -259,19 +264,21 @@ SD.wizard = (function () {
     if (i >= 0) { if (list.length === 1) { SD.toast('Нужен хотя бы один стиль'); return; } list.splice(i, 1); } else list.push(id);
     S.answers.styles = SD.STYLE_ORDER.filter(s => list.includes(s));
     S.answers.variant = 0; S.answers.palette = null;
+    SD.applyLook(S.answers);
     A.regenerate(); render();
   }
 
   // ---------- 4. Сочетание ----------
   function stepMix(root) {
-    const vs = SD.gen.variants(S.answers.styles);
+    const vs = SD.gen.variants(S.answers.styles, S.answers.fidelity);
     root.append(h('p', null, `Выбрано стилей: ${S.answers.styles.length}. Из них собраны варианты сочетаний: цвета одного стиля, акцент и шрифт — другого, декоративные приёмы — обоих. Выберите самый близкий.`));
     root.append(h('div', { class: 'q' }, 'Вопрос 7. Какой вариант сочетания нравится больше?'));
     const g = h('div', { class: 'thumbs' });
     vs.forEach((v, i) => {
-      const card = h('div', { class: 'thumb' + (i === S.answers.variant ? ' on' : ''), onclick: () => { S.answers.variant = i; S.answers.palette = null; A.regenerate(); render(); } },
-        thumb(withAns({ variant: i, palette: null })),
-        h('div', null, `${i + 1}. ${v.title}`),
+      const ta = withAns({ variant: i, palette: null }); SD.applyLook(ta);
+      const card = h('div', { class: 'thumb' + (i === S.answers.variant ? ' on' : ''), onclick: () => { S.answers.variant = i; S.answers.palette = null; SD.applyLook(S.answers); A.regenerate(); render(); } },
+        thumb(ta),
+        h('div', null, `${i + 1}. ${v.title}`), v.look ? h('div', { class: 'note' }, v.look.desc) : '',
         h('div', { class: 'note' }, (SD.STYLES[v.fontFrom] || {}).font + ' · ' + v.motifs.map(m => SD.MOTIF_NAMES[m]).join(', ')));
       g.append(card);
     });
@@ -310,7 +317,7 @@ SD.wizard = (function () {
     root.append(h('div', { class: 'q' }, 'Готовые палитры из выбранных стилей'));
     const t2 = h('table', { class: 'doc compact' });
     t2.append(h('tr', null, h('th', null, 'Палитра'), h('th', null, 'Цвета'), h('th', null, '')));
-    SD.gen.variants(S.answers.styles).forEach((v) => {
+    SD.gen.variants(S.answers.styles, S.answers.fidelity).forEach((v) => {
       const p = SD.gen.palette(v);
       t2.append(h('tr', null, h('td', null, v.title), h('td', null, h('span', { class: 'strip' }, ...['bg', 'primary', 'accent', 'text', 'soft'].map(r => h('i', { style: { background: p[r] } })))),
         h('td', { class: 'c' }, h('button', { class: 'btn sm', onclick: () => { S.answers.palette = strip(p); A.applySoft('palette'); A.save(); render(); } }, 'Взять'))));
@@ -568,7 +575,7 @@ SD.wizard = (function () {
         const k = Math.min(120 / b.doc.w, 150 / b.doc.h);
         const c = SD.render.pageCanvas(b.doc, b.doc.pages[0], k * 2);
         c.style.width = b.doc.w * k + 'px'; c.style.height = b.doc.h * k + 'px';
-        const v = SD.gen.variants(b.ans.styles)[b.ans.variant] || {};
+        const v = SD.gen.variants(b.ans.styles, b.ans.fidelity)[b.ans.variant] || {};
         g.append(h('div', { class: 'thumb' + (i === autoSel ? ' on' : ''), onclick: () => { autoSel = i; render(); } }, c,
           h('div', null, h('b', null, b.score.total + '/100'), b.score.taste ? ` · вкус ${b.score.taste > 0 ? '+' : ''}${b.score.taste}` : ''), h('div', { class: 'note' }, `${SD.LAYOUTS[b.ans.layout].name} · ${v.title || ''} · ${SD.gen.GRAD_TYPES[(b.doc.decisions || []).find(d => d.topic === 'Градиент') ? Object.keys(SD.gen.GRAD_TYPES).find(t => SD.gen.GRAD_TYPES[t] === b.doc.decisions.find(d => d.topic === 'Градиент').choice) : 'none']}`)));
       });
@@ -748,7 +755,8 @@ SD.wizard = (function () {
     const styles = SD.STYLE_ORDER.filter(s => pool.slice(0, 1 + Math.floor(Math.random() * 3)).includes(s));
     const a = S.answers;
     Object.assign(a, { kind, goal, format: K.format, orient: K.orient, pages: K.pages, styles, palette: null, font: null, textsEdited: false });
-    a.variant = Math.floor(Math.random() * SD.gen.variants(styles).length);
+    a.variant = Math.floor(Math.random() * SD.gen.variants(styles, a.fidelity).length);
+    SD.applyLook(a);
     a.layout = P(Object.keys(SD.LAYOUTS));
     a.align = P(['left', 'left', 'center']);
     a.titleScale = P([1, 1, 1.2, 1.45]);

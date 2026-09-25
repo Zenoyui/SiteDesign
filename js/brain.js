@@ -87,7 +87,8 @@ SD.brain = (function () {
     const cta = page.elements.find(e => e.role === 'cta');
     const needCta = ['sell', 'event', 'inform'].includes(ans.goal);
     if (cta) {
-      const c0 = u.contrast(cta.fill, page.bg);
+      const ctaT = page.elements.find(e => e.role === 'ctaText');
+      const c0 = u.contrast(cta.fill && cta.fill !== 'none' ? cta.fill : (ctaT ? ctaT.fill : page.bg), page.bg);
       const rivals = page.elements.filter(e => e !== cta && ['rect', 'ellipse', 'star', 'wave'].includes(e.type) && e.fill && e.role !== 'pattern' && e.w * e.h < doc.w * doc.h * 0.3);
       const stronger = rivals.filter(e => u.contrast(e.fill, page.bg) > c0 + 0.3).length;
       parts.cta = u.clamp(Math.min(c0, 7) / 7, 0, 1) * (stronger === 0 ? 1 : stronger <= 2 ? 0.8 : 0.55);
@@ -140,7 +141,7 @@ SD.brain = (function () {
     const ind = SD.INDUSTRIES[ans.industry] || SD.INDUSTRIES.transport;
     const cand = ind.palettes.flatMap(p => [p.c[1], p.c[2]]);
     const pal = SD.app && SD.app.S && SD.app.S.answers === ans ? SD.app.pal() : null;
-    const prim = cta ? cta.fill : (pal ? pal.primary : page.bg);
+    const prim = cta && cta.fill && cta.fill !== 'none' ? cta.fill : (pal ? pal.primary : page.bg);
     const mainColor = (page.elements.find(e => e.role === 'panel' || (e.role === 'decor' && e.w * e.h > doc.w * doc.h * 0.1)) || {}).fill || prim;
     const dmin = Math.min(...cand.map(c => Math.min(C.deltaE(c, mainColor), C.deltaE(c, prim))));
     parts.proto = u.clamp(1 - Math.max(0, dmin - 0.06) / 0.25, 0.3, 1);
@@ -165,7 +166,7 @@ SD.brain = (function () {
     let r = seed;
     const rnd = () => { r = (r * 16807) % 2147483647; return r / 2147483647; };
     const pick = arr => arr[Math.floor(rnd() * arr.length)];
-    const vs = SD.gen.variants(ans.styles);
+    const vs = SD.gen.variants(ans.styles, ans.fidelity);
     const layouts = keep.layout ? [ans.layout] : Object.keys(SD.LAYOUTS);
     const out = [JSON.parse(JSON.stringify(ans))];
     const seen = new Set();
@@ -174,6 +175,9 @@ SD.brain = (function () {
       const a = JSON.parse(JSON.stringify(ans));
       if (!keep.style) { a.variant = Math.floor(rnd() * vs.length); a.palette = null; }
       a.layout = pick(layouts);
+      // у образа стиля есть своя композиция — в половине случаев берём её целиком
+      const vv = vs[a.variant];
+      if (!keep.layout && !keep.fx && vv && vv.look && rnd() < 0.5) { SD.applyLook(a); const key0 = JSON.stringify([a.variant, a.layout, a.fx]); if (seen.has(key0)) continue; seen.add(key0); out.push(a); continue; }
       if (!keep.layout) a.align = pick(['left', 'left', 'center']);
       a.titleScale = pick([1, 1, 1.2, 1.45]);
       if (!keep.fx) {

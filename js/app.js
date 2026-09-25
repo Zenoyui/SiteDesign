@@ -9,6 +9,11 @@ SD.app = (function () {
     return { benefit1: b[0], benefit2: b[1], benefit3: b[2] };
   }
   function defaultAnswers() {
+    const a = baseAnswers();
+    if (SD.applyLook) SD.applyLook(a);
+    return a;
+  }
+  function baseAnswers() {
     return {
       kind: 'flyer', goal: 'sell', format: 'A6', orient: 'portrait', pages: 1,
       styles: ['go'], variant: 0, palette: null, font: null,
@@ -16,6 +21,7 @@ SD.app = (function () {
       texts: Object.assign({ qr: 'https://example.com' }, SD.EXAMPLES.sell, benefitTexts('transport')),
       mk: { urgency: false, benefits: false, price: false, proof: false, guarantee: false, arrow: false, contrastCta: false },
       fx: { auto: true, effects: [], icons: 'soft', pattern: 'none', display: 'none' },
+      fidelity: 'brand',
       layout: 'top', align: 'left', titleScale: 1,
       opts: { motif: true, cta: true, promo: true, qr: false, contacts: true, image: null, imageFit: 'cover', rounded: 1 }
     };
@@ -40,7 +46,7 @@ SD.app = (function () {
   function byId(id, p) { return (p || page()).elements.find(e => e.id === id); }
   function selected() { return S.sel.map(id => byId(id)).filter(Boolean); }
 
-  function variant() { const vs = SD.gen.variants(S.answers.styles); return vs[S.answers.variant] || vs[0]; }
+  function variant() { const vs = SD.gen.variants(S.answers.styles, S.answers.fidelity); return vs[S.answers.variant] || vs[0]; }
   function pal() { return S.answers.palette ? SD.gen.withDerived(Object.assign({}, S.answers.palette)) : SD.gen.palette(variant()); }
 
   // ---------- История ----------

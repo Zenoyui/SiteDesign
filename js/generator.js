@@ -6,9 +6,14 @@ SD.gen = (function () {
   const PT = SD.PT, u = SD.u;
 
   // ---------- Варианты сочетания стилей ----------
-  function variants(styles) {
+  function variants(styles, fidelity) {
     const S = (styles && styles.length ? styles : ['yandex']).filter(s => SD.STYLES[s]);
     const out = [];
+    // один стиль и режим «как если бы делала компания» — варианты это образы стиля из рецепта
+    if (S.length === 1 && fidelity !== 'free' && SD.RECIPES && SD.RECIPES[S[0]]) {
+      const s = S[0];
+      SD.RECIPES[s].looks.forEach((L, i) => out.push({ key: s + '#' + i, title: `${SD.STYLES[s].name}: ${L.name}`, colorsFrom: s, fontFrom: s, motifs: L.motifs || [SD.STYLES[s].motif], motifFrom: [s], invert: !!L.invert, look: L }));
+    }
     const nm = id => SD.STYLES[id].name;
     const mot = id => SD.STYLES[id].motif;
     // Первым идёт смесь ВСЕХ выбранных стилей — её и видно в превью сразу после выбора.
@@ -90,6 +95,12 @@ SD.gen = (function () {
     c.primary2 = grad(c.primary, c.onPrimary);
     c.accent2 = grad(c.accent, c.onAccent);
     c.icon = u.contrast(c.primary, c.bg) >= 2 ? c.primary : c.text;
+    // приглушённый текст (подзаголовки «как у Apple») — но читаемый, от 4,6:1
+    let muted = u.mix(c.text, c.bg, 0.38);
+    for (let i = 0; i < 20 && u.contrast(muted, c.bg) < 4.6; i++) muted = u.mix(muted, c.text, 0.15);
+    c.muted = muted;
+    // цвет ссылки-кнопки «Подробнее ›»
+    c.link = u.contrast(c.accent, c.bg) >= 4.8 ? c.accent : u.contrast(c.primary, c.bg) >= 4.8 ? c.primary : c.text;
     // цвет для текста-акцента (цена): только если читается как текст — от 4,5:1
     c.ink = u.contrast(c.primary, c.bg) >= 5 ? c.primary : u.contrast(c.accent, c.bg) >= 5 ? c.accent : c.text; // с запасом на сглаживание букв
     return c;
@@ -130,13 +141,16 @@ SD.gen = (function () {
     const f = SD.FORMATS[ans.format] || SD.FORMATS.A5;
     let W = f.w, H = f.h;
     if (!f.fixedOrient && (ans.orient === 'landscape') !== (W > H)) { const t = W; W = H; H = t; }
-    const vs = variants(ans.styles);
+    const vs = variants(ans.styles, ans.fidelity);
     const v = vs[ans.variant] || vs[0];
-    const pal = ans.palette ? withDerived(Object.assign({}, ans.palette)) : palette(v);
+    let pal = ans.palette ? withDerived(Object.assign({}, ans.palette)) : palette(v);
+    // образ стиля может задать свою палитру (например, «тёмная витрина»)
+    if (v.look && v.look.pal && !ans.palette) pal = withDerived(Object.assign({}, pal, v.look.pal));
     const st = styleProps(ans, v);
     const ctx = { ans, v, pal, st, W, H, T: ans.texts, notes: [], fx: fxFor(ans), icons: (SD.INDUSTRIES[ans.industry] || SD.INDUSTRIES.transport).icons };
     ctx.base = Math.min(W, H * 0.75);
-    ctx.m = Math.max(6, u.round(ctx.base * 0.08, 1));
+    ctx.rc = v.look || null;
+    ctx.m = Math.max(6, u.round(ctx.base * 0.08 * ((ctx.rc && ctx.rc.margin) || 1), 1));
 
     const n = Math.max(1, ans.pages || 1);
     const pages = [];
@@ -189,10 +203,12 @@ SD.gen = (function () {
   }
 
   function mkTitle(ctx, s, extra) {
-    return text(Object.assign({ name: 'Заголовок', role: 'title', textKey: 'title', text: ctx.T.title, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.title, 1), lh: 1.05, upper: ctx.st.upper, fillRole: 'text', w: ctx.W - ctx.m * 2 }, extra));
+    const R = ctx.rc || {};
+    return text(Object.assign({ name: 'Заголовок', role: 'title', textKey: 'title', text: ctx.T.title, font: ctx.st.font, weight: R.tw ? SD.nearWeight(ctx.st.font, R.tw) : ctx.st.tw, size: u.round(s.title, 1), lh: R.tlh || 1.05, ls: R.tls || 0, upper: R.upper != null ? R.upper : ctx.st.upper, fillRole: 'text', w: ctx.W - ctx.m * 2 }, extra));
   }
   function mkSub(ctx, s, extra) {
-    return text(Object.assign({ name: 'Подзаголовок', role: 'subtitle', textKey: 'subtitle', text: ctx.T.subtitle, font: ctx.st.font, weight: ctx.st.sw, size: u.round(s.sub, 1), lh: 1.2, fillRole: 'text', w: ctx.W - ctx.m * 2 }, extra));
+    const R = ctx.rc || {};
+    return text(Object.assign({ name: 'Подзаголовок', role: 'subtitle', textKey: 'subtitle', text: ctx.T.subtitle, font: ctx.st.font, weight: R.sw ? SD.nearWeight(ctx.st.font, R.sw) : ctx.st.sw, size: u.round(s.sub, 1), lh: 1.2, fillRole: R.muted ? 'muted' : 'text', w: ctx.W - ctx.m * 2 }, extra));
   }
   function mkBody(ctx, s, extra) {
     return text(Object.assign({ name: 'Основной текст', role: 'body', textKey: 'body', text: ctx.T.body, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.body, 1), lh: 1.35, fillRole: 'text', w: ctx.W - ctx.m * 2 }, extra));
@@ -202,26 +218,37 @@ SD.gen = (function () {
   }
 
   // Кнопка-призыв: плашка + текст, привязанный к плашке.
+  // Кнопка: таблетка, строгая плашка, ссылка «Подробнее ›» или контур — как принято у стиля
   function mkCta(ctx, s, x, y, colW, align, role) {
-    role = role || ctx.st.ctaRole;
-    const onRole = role === 'accent' ? 'onAccent' : role === 'text' ? 'bg' : role === 'ctaMax' ? 'onCtaMax' : 'onPrimary';
-    const t = text({ name: 'Текст кнопки', role: 'ctaText', textKey: 'cta', text: ctx.T.cta, font: ctx.st.font, weight: ctx.st.sw, size: u.round(s.cta, 1), align: 'center', lh: 1.1, fillRole: onRole, w: 400 });
+    const R = ctx.rc || {};
+    const kind = R.cta || (ctx.st.pill ? 'pill' : 'rect');
+    role = role || R.ctaRole || ctx.st.ctaRole;
+    let onRole = role === 'accent' ? 'onAccent' : role === 'text' ? 'bg' : role === 'ctaMax' ? 'onCtaMax' : 'onPrimary';
+    if (kind === 'link') onRole = 'link';
+    if (kind === 'outline') onRole = 'text';
+    const t = text({ name: 'Текст кнопки', role: 'ctaText', textKey: 'cta', text: ctx.T.cta, suffix: kind === 'link' ? ' ›' : '', font: ctx.st.font, weight: kind === 'link' ? ctx.st.bw : ctx.st.sw, size: u.round(kind === 'link' ? s.cta * 1.12 : s.cta, 1), align: 'center', lh: 1.1, fillRole: onRole, w: 400 });
     const tw = Math.min(SD.render.textWidth(t) + 0.6, colW - 6);
     t.w = tw; SD.render.fitHeight(t);
-    const padX = t.size * PT * 1.1, padY = t.size * PT * 0.62;
+    const flat = kind === 'link';
+    const padX = flat ? 0 : t.size * PT * 1.1, padY = flat ? 0 : t.size * PT * 0.62;
     const bw = tw + padX * 2, bh = t.h + padY * 2;
     const bx = align === 'center' ? x + (colW - bw) / 2 : align === 'right' ? x + colW - bw : x;
-    const r = ctx.st.pill ? bh / 2 : Math.min(bh / 2, ctx.st.radiusK * 60);
-    const btn = base({ name: 'Кнопка', role: 'cta', x: bx, y, w: bw, h: bh, radius: r, fillRole: role, cons: { h: 'scale', v: 'scale' } });
+    const r = kind === 'pill' ? bh / 2 : kind === 'rect' ? Math.min(bh / 2, ctx.st.radiusK * 60) : Math.min(bh / 2, ctx.st.radiusK * 30);
+    const btn = base({ name: 'Кнопка', role: 'cta', ctaKind: kind, x: bx, y, w: bw, h: bh, radius: r, fillRole: role, cons: { h: 'scale', v: 'scale' } });
+    if (kind === 'link' || kind === 'outline') { btn.fill = 'none'; btn.fillRole = null; }
+    if (kind === 'outline') { btn.stroke = '#000'; btn.strokeRole = 'text'; btn.strokeW = u.round(Math.max(0.3, t.size * PT * 0.09), 2); }
     t.x = bx + padX; t.y = y + padY; t.cons = { h: 'scale', v: 'scale' };
     t.pin = { id: btn.id, dx: padX, dy: padY };
     t.fitParent = { padX, padY };
     return [btn, t];
   }
 
+  // Бейдж: звезда, круг, таблетка, ценник или блок — как принято у стиля
   function mkPromo(ctx, s, cx, cy, k = 1) {
+    const kind = (ctx.rc && ctx.rc.promo) || 'star';
+    if (kind !== 'star') return mkPromoShape(ctx, s, cx, cy, k, kind);
     const d = ctx.base * 0.25 * k;
-    const star = base({ type: 'star', name: 'Бейдж', role: 'promo', x: cx - d / 2, y: cy - d / 2, w: d, h: d, points: 14, inner: 0.86, rot: -12, fillRole: 'accent', cons: { h: 'scale', v: 'scale' } });
+    const star = base({ type: 'star', name: 'Бейдж', role: 'promo', promoKind: 'star', x: cx - d / 2, y: cy - d / 2, w: d, h: d, points: 14, inner: 0.86, rot: -12, fillRole: 'accent', cons: { h: 'scale', v: 'scale' } });
     const t = text({ name: 'Текст бейджа', role: 'promoText', textKey: 'promo', text: ctx.T.promo, font: ctx.st.font, weight: ctx.st.tw, size: u.round(Math.max(SIZE_FLOOR.promoText, s.promo * k * (String(ctx.T.promo).length > 5 ? 0.62 : 1)), 1), align: 'center', lh: 1, fillRole: 'onAccent', w: d * 0.8, rot: -12 });
     for (let i = 0; i < 12 && SD.render.textWidth(t) > t.w * 0.98 && t.size > SIZE_FLOOR.promoText; i++) t.size = u.round(Math.max(SIZE_FLOOR.promoText, t.size * 0.9), 1);
     SD.render.fitHeight(t);
@@ -235,6 +262,25 @@ SD.gen = (function () {
     t.x = star.x + d2 * 0.1; t.y = star.y + (d2 - t.h) / 2;
     t.pin = { id: star.id, dx: t.x - star.x, dy: t.y - star.y };
     return [star, t];
+  }
+
+  function mkPromoShape(ctx, s, cx, cy, k, kind) {
+    const d = ctx.base * 0.25 * k;
+    const R = ctx.rc || {};
+    const role = R.promoRole || 'accent', on = role === 'accent' ? 'onAccent' : role === 'primary' ? 'onPrimary' : role === 'text' ? 'bg' : 'onAccent';
+    const big = kind === 'block' ? 1.25 : kind === 'circle' ? 1 : 0.85;
+    const t = text({ name: 'Текст бейджа', role: 'promoText', textKey: 'promo', text: ctx.T.promo, font: ctx.st.font, weight: ctx.st.tw, size: u.round(Math.max(SIZE_FLOOR.promoText, s.promo * k * big * (String(ctx.T.promo).length > 5 ? 0.62 : 1)), 1), align: 'center', lh: 1, fillRole: on, w: 400 });
+    let w, h, type = 'rect', radius = 0, rot = 0;
+    const tw = SD.render.textWidth(t) + 0.6;
+    if (kind === 'circle') { type = 'ellipse'; w = h = Math.max(d * 0.85, tw * 1.35); }
+    else if (kind === 'pill') { h = t.size * PT * 2.1; w = Math.max(tw + h * 0.9, h * 1.6); radius = h / 2; }
+    else if (kind === 'tag') { h = t.size * PT * 2.3; w = Math.max(tw + h * 0.8, h * 1.8); radius = h * 0.12; rot = -6; }
+    else { h = t.size * PT * 2.4; w = Math.max(tw + h * 0.9, d * 1.1); radius = 0; } // block
+    const sh = base({ type, name: 'Бейдж', role: 'promo', promoKind: kind, x: cx - w / 2, y: cy - h / 2, w, h, radius, rot, fillRole: role, cons: { h: 'scale', v: 'scale' } });
+    t.w = Math.min(tw, w * 0.9); t.rot = rot; SD.render.fitHeight(t);
+    t.x = sh.x + (w - t.w) / 2; t.y = sh.y + (h - t.h) / 2;
+    t.pin = { id: sh.id, dx: t.x - sh.x, dy: t.y - sh.y };
+    return [sh, t];
   }
 
   function mkQr(ctx, s, x, y, q) {
@@ -405,7 +451,7 @@ SD.gen = (function () {
     const list = [];
     for (const p of doc.pages) for (const el of p.elements) {
       if (!['rect', 'ellipse', 'wave', 'star'].includes(el.type) || !el.fillRole || !['primary', 'accent', 'ctaMax', 'bg', 'soft'].includes(el.fillRole)) continue;
-      if (el.role === 'pattern' || (el.opacity < 0.5 && !['panel', 'card'].includes(el.role))) continue;
+      if (el.role === 'pattern' || el.gradType || (el.opacity < 0.5 && !['panel', 'card'].includes(el.role))) continue; // фирменный градиент мотива не трогаем
       // почти бесцветным поверхностям (серые подложки) градиент не нужен — будет «грязь»
       if (SD.color.chroma(ctx.pal[el.fillRole] || '#888888') < 0.05) continue;
       const big = el.w * el.h / A;
@@ -679,7 +725,7 @@ SD.gen = (function () {
     const mk0 = ans.mk || {}, T = ans.texts;
     const drop = ctx.drop || new Set();
     const mk = new Proxy(mk0, { get: (o, k) => o[k] && !drop.has(k) });
-    const o = Object.assign({}, ans.opts, { qr: ans.opts.qr && !drop.has('qr'), promo: ans.opts.promo && !drop.has('promo'), cta: ans.opts.cta && !ctx.tiny, image: ctx.tiny ? null : ans.opts.image });
+    const o = Object.assign({}, ans.opts, { qr: ans.opts.qr && !drop.has('qr'), promo: ans.opts.promo && !drop.has('promo') && !(ctx.rc && ctx.rc.promo === 'none'), cta: ans.opts.cta && !ctx.tiny, image: ctx.tiny ? null : ans.opts.image });
     // на визитке волна слишком тонкая — контакты легли бы на гребень
     const motifs = o.motif ? ctx.v.motifs.filter(k => !(ctx.tiny && k === 'wave')) : [];
     const has = k => motifs.includes(k);
@@ -889,7 +935,15 @@ SD.gen = (function () {
       else ctx.notes.push('Бейдж убран: для него не нашлось места, где он не закрывает текст.');
     }
     avoidDecor(ctx, back, mid.concat(fore));
-    return [...back, ...mid, ...fore];
+    return [...plate(ctx), ...back, ...mid, ...fore];
+  }
+
+  // Фон-подложка во весь лист (например, градиент фуксии или зелёный градиент)
+  function plate(ctx) {
+    if (!ctx.rc || !ctx.rc.plate) return [];
+    const p = base({ name: 'Фон', role: 'bgplate', x: 0, y: 0, w: ctx.W, h: ctx.H, fillRole: 'bg', locked: true, cons: { h: 'left-right', v: 'top-bottom' } });
+    p.gradType = ctx.rc.plate; p.gradSeed = 17;
+    return [p];
   }
 
   // Декор, который сливается с текстом поверх него, уменьшаем и сдвигаем к краю; не помогло — убираем
@@ -988,7 +1042,7 @@ SD.gen = (function () {
       else if (k === 'dot' || k === 'blobs' || k === 'bigdot') { if (!(land && o.qr)) back.push(...motif(ctx, k, z)); }
     }
     if (idx % 2 === 0 && ans.kind !== 'slides') heading.textKey = 'title';
-    return [...back, ...els];
+    return [...plate(ctx), ...back, ...els];
   }
 
   // Последний слайд презентации
