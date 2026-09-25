@@ -90,6 +90,8 @@ SD.gen = (function () {
     c.primary2 = grad(c.primary, c.onPrimary);
     c.accent2 = grad(c.accent, c.onAccent);
     c.icon = u.contrast(c.primary, c.bg) >= 2 ? c.primary : c.text;
+    // цвет для текста-акцента (цена): только если читается как текст — от 4,5:1
+    c.ink = u.contrast(c.primary, c.bg) >= 4.5 ? c.primary : u.contrast(c.accent, c.bg) >= 4.5 ? c.accent : c.text;
     return c;
   }
 
@@ -295,7 +297,7 @@ SD.gen = (function () {
   }
   // Цена-якорь: новая крупно, старая зачёркнута
   function mkPrice(ctx, s) {
-    const nw = text({ name: 'Новая цена', role: 'price', textKey: 'priceNew', text: ctx.T.priceNew, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.sub * 1.7, 1), lh: 1, fillRole: 'icon', w: 100 });
+    const nw = text({ name: 'Новая цена', role: 'price', textKey: 'priceNew', text: ctx.T.priceNew, font: ctx.st.font, weight: ctx.st.tw, size: u.round(s.sub * 1.7, 1), lh: 1, fillRole: 'ink', w: 100 });
     const old = ctx.T.priceOld ? text({ name: 'Старая цена', role: 'priceOld', textKey: 'priceOld', text: ctx.T.priceOld, font: ctx.st.font, weight: ctx.st.bw, size: u.round(s.sub, 1), lh: 1, fillRole: 'text', strike: true, w: 100 }) : null;
     const els = old ? [nw, old] : [nw];
     return { group: true, els, h: 0, place(x, y, w, align) {

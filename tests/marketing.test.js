@@ -48,7 +48,7 @@ const { chromium } = require(require('child_process').execSync('npm root -g').to
       const a = baseAns(); a.layout = lay; a.fx.display = k; check(`показ «${k}» в ${lay}`, els(a).some(e => e.role === 'display'));
     }
     // 5. Наборы брендов разные, смесь наборов — объединение
-    const kitSigs = SD.STYLE_ORDER.map(id => { const a = baseAns(); a.fx = Object.assign({ auto: false }, SD.KITS[id]); return sig(a); });
+    const kitSigs = SD.STYLE_ORDER.map(id => { const a = baseAns(); a.mk.benefits = true; a.fx = Object.assign({ auto: false }, SD.KITS[id]); return sig(a); });
     check(`${SD.STYLE_ORDER.length} наборов брендов дают разные макеты`, new Set(kitSigs).size === SD.STYLE_ORDER.length);
     // 6. Сфера меняет значки выгод
     const icons = Object.keys(SD.INDUSTRIES).map(ind => { const a = baseAns(); a.industry = ind; a.mk.benefits = true; return els(a).filter(e => e.role === 'icon').map(e => e.icon).join(); });
