@@ -518,7 +518,7 @@ SD.gen = (function () {
     const C = SD.color;
     const keep = c => {
       if (!on) return c;
-      for (let i = 0; i < 14 && u.contrast(c, on) < 4.5; i++) c = C.shift(c, 0, SD.color.lightness(on) > 0.6 ? -0.025 : 0.025, 0);
+      for (let i = 0; i < 16 && u.contrast(c, on) < 5; i++) c = C.shift(c, 0, SD.color.lightness(on) > 0.6 ? -0.025 : 0.025, 0); // с запасом на смешение пятен
       return c;
     };
     const r = n => { const x = Math.sin((seed || 1) * 12.9898 + n * 78.233) * 43758.5453; return x - Math.floor(x); };
@@ -852,7 +852,7 @@ SD.gen = (function () {
       promoAt = lay === 'split' ? [W - m - pd * 0.4, m + pd * 0.4] : [W - m - pd * 0.45, topH - pd * 0.3];
       let y;
       if (lay === 'split' && !o.image) {
-        back.push(base({ name: 'Верхняя зона', role: 'decor', x: 0, y: 0, w: W, h: topH, fillRole: 'primary', cons: { h: 'left-right', v: 'scale' } }));
+        back.push(base({ name: 'Верхняя зона', role: 'decor', under: true, x: 0, y: 0, w: W, h: topH, fillRole: 'primary', cons: { h: 'left-right', v: 'scale' } }));
         heads.forEach(e => { if (!e.keepColor) e.fillRole = 'onPrimary'; });
         const hh = heads.reduce((a, e) => { e.w = W - 2 * m; SD.render.fitHeight(e); return a + e.h; }, 0) + gap * 0.5;
         stack(heads, m, topH - m * 0.8 - hh, W - 2 * m, align, [gap * 0.5]);
@@ -862,7 +862,7 @@ SD.gen = (function () {
         if (has('wave')) zoneRoles = { main: 'accent', second: 'soft' };
       } else {
         if (o.image) back.push(mkImage(ctx, topZone, 0));
-        else { back.push(base({ name: 'Фон картинки', role: 'decor', x: 0, y: 0, w: W, h: topH, fillRole: 'soft', cons: { h: 'left-right', v: 'scale' } })); zone = { x: m, y: m, w: W - 2 * m, h: topH - 2 * m }; }
+        else { back.push(base({ name: 'Фон картинки', role: 'decor', under: true, x: 0, y: 0, w: W, h: topH, fillRole: 'soft', cons: { h: 'left-right', v: 'scale' } })); zone = { x: m, y: m, w: W - 2 * m, h: topH - 2 * m }; }
         y = stack(heads, m, topH + m * 0.8 + (has('block') ? m * 0.4 : 0), W - 2 * m, align, [gap * 0.5, gap]);
         if (has('block')) { back.push(headPanel(ctx, heads, m * 0.45)); y += m * 0.45; }
         if (has('stripe')) back.push(marker(ctx, title));
@@ -877,11 +877,11 @@ SD.gen = (function () {
     } else { // diagonal
       const bigS = Object.assign({}, s, { title: s.title * 1.45 });
       const t = mkTitle(ctx, bigS, { align: 'center', upper: true, lh: 1 });
-      t.x = m * 0.8; t.w = W - m * 1.6; SD.render.fitHeight(t);
+      t.x = m; t.w = W - m * 2; SD.render.fitHeight(t);
       const cy = H * 0.34;
       t.y = cy - t.h / 2; t.rot = -8; t.fillRole = 'onPrimary';
       const pad = t.size * PT * 0.35;
-      back.push(base({ name: 'Лента', role: 'decor', x: -W * 0.15, y: t.y - pad, w: W * 1.3, h: t.h + pad * 2, rot: -8, fillRole: 'primary', cons: { h: 'left-right', v: 'scale' } }));
+      back.push(base({ name: 'Лента', role: 'decor', under: true, x: -W * 0.15, y: t.y - pad, w: W * 1.3, h: t.h + pad * 2, rot: -8, fillRole: 'primary', cons: { h: 'left-right', v: 'scale' } }));
       mid.push(t);
       const yBottom = bottomRow(m, W - 2 * m, 'center');
       limitY = yBottom;
@@ -995,7 +995,7 @@ SD.gen = (function () {
     const byGrp = {};
     for (const d of back) {
       // фоновые полосы во всю ширину не трогаем — они задуманы под текстом
-      if (d.role !== 'decor' || d.type === 'wave' || (d.type === 'pattern' && d.role === 'pattern') || (d.type === 'rect' && d.w >= ctx.W * 0.95)) continue;
+      if (d.role !== 'decor' || d.type === 'wave' || (d.type === 'pattern' && d.role === 'pattern') || d.under) continue;
       const key = d.grp || d.id;
       if (!byGrp[key]) { byGrp[key] = []; groups.push(byGrp[key]); }
       byGrp[key].push(d);
@@ -1077,7 +1077,7 @@ SD.gen = (function () {
     const { ans, W, H, m } = ctx;
     const s = sizes(ctx);
     const els = [];
-    els.push(base({ name: 'Фон', role: 'decor', x: 0, y: 0, w: W, h: H, fillRole: 'primary', cons: { h: 'left-right', v: 'top-bottom' } }));
+    els.push(base({ name: 'Фон', role: 'decor', under: true, x: 0, y: 0, w: W, h: H, fillRole: 'primary', cons: { h: 'left-right', v: 'top-bottom' } }));
     const t = mkTitle(ctx, s, { textKey: 'cta', text: ans.texts.cta || 'Спасибо!', align: 'center', fillRole: 'onPrimary' });
     const c = mkSmall(ctx, s, 'contacts', { align: 'center', fillRole: 'onPrimary' });
     stack([t, c], m, H * 0.36, W - 2 * m, 'center', [m * 0.5]);
