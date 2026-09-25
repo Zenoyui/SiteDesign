@@ -11,7 +11,7 @@ const { chromium } = require(require('child_process').execSync('npm root -g').to
 
   const r = await p.evaluate(() => {
     const fails = [], ok = [];
-    const baseAns = () => { const a = JSON.parse(JSON.stringify(SD.app.S.answers)); a.layout = 'top'; a.format = 'A5'; a.fx = { auto: false, effects: [], icons: 'line', pattern: 'none', display: 'none', gradient: 'auto' }; a.industry = 'eco'; return a; };
+    const baseAns = () => { const a = JSON.parse(JSON.stringify(SD.app.S.answers)); a.layout = 'top'; a.format = 'A5'; a.fx = { auto: false, effects: [], icons: 'line', pattern: 'none', display: 'none', gradient: 'auto' }; a.industry = 'eco'; a.fidelity = 'free'; a.variant = 0; return a; }; // общая механика эффектов — без образа стиля
     const els = a => SD.gen.build(a).pages[0].elements;
     const sig = a => JSON.stringify(els(a).map(e => [e.type, e.role, e.fill, e.fill2, e.stroke, e.rot, e.shadow && e.shadow.blur, e.iconStyle, e.kind, e.gradType]).concat([SD.gen.build(a).pages[0].fx]));
     const check = (name, cond) => (cond ? ok : fails).push(name);

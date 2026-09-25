@@ -97,7 +97,7 @@ SD.gen = (function () {
     c.icon = u.contrast(c.primary, c.bg) >= 2 ? c.primary : c.text;
     // приглушённый текст (подзаголовки «как у Apple») — но читаемый, от 4,6:1
     let muted = u.mix(c.text, c.bg, 0.38);
-    for (let i = 0; i < 20 && u.contrast(muted, c.bg) < 4.6; i++) muted = u.mix(muted, c.text, 0.15);
+    for (let i = 0; i < 20 && u.contrast(muted, c.bg) < 5.2; i++) muted = u.mix(muted, c.text, 0.15); // с запасом на лёгкие подложки
     c.muted = muted;
     // цвет ссылки-кнопки «Подробнее ›»
     c.link = u.contrast(c.accent, c.bg) >= 4.8 ? c.accent : u.contrast(c.primary, c.bg) >= 4.8 ? c.primary : c.text;
@@ -465,7 +465,10 @@ SD.gen = (function () {
     const reasons = [];
     const surf = surfaces(doc, ctx);
     const bigArea = surf.reduce((a, s) => a + (s.big > 0.04 ? s.big : 0), 0);
-    if (!surf.length) return { type: 'none', reasons: ['На макете нет цветных поверхностей, куда можно положить градиент (кнопка и плашки тёмные или серые).'], score: null, surf };
+    if (!surf.length) {
+      if (setting !== 'auto' && setting !== 'none' && SD.color.chroma(ctx.pal.bg) > 0.05) return { type: setting, reasons: ['Цветных плашек нет — градиент положен на фон листа.'], score: null, surf, plateBg: true };
+      return { type: 'none', reasons: ['На макете нет цветных поверхностей, куда можно положить градиент (кнопка и плашки тёмные или серые).'], score: null, surf };
+    }
     if (setting !== 'auto') return { type: setting, reasons: [setting === 'none' ? 'Градиент выключен вручную.' : 'Тип градиента выбран вручную.'], score: null, surf };
     let score = 0;
     const ind = ctx.ans.industry || 'transport';
@@ -499,6 +502,11 @@ SD.gen = (function () {
     doc.decisions = doc.decisions || [];
     doc.decisions.push({ topic: 'Градиент', choice: GRAD_TYPES[d.type], reasons: d.reasons, score: d.score });
     if (d.type === 'none') return;
+    if (d.plateBg) for (const p of doc.pages) if (!p.elements.some(e => e.role === 'bgplate')) {
+      const pl = base({ name: 'Фон', role: 'bgplate', x: 0, y: 0, w: ctx.W, h: ctx.H, fillRole: 'bg', locked: true, cons: { h: 'left-right', v: 'top-bottom' } });
+      pl.gradType = d.type; pl.gradSeed = 17;
+      p.elements.unshift(pl);
+    }
     for (const { el, big } of d.surf) {
       // на маленьких элементах сложный градиент превращается в «грязь» — там простой линейный
       el.gradType = big > 0.04 || el.role === 'panel' || el.role === 'display' ? d.type : 'linear';
@@ -931,12 +939,25 @@ SD.gen = (function () {
         return obstacles.reduce((a, o) => Math.max(a, Math.max(0, Math.min(b.x + b.w, o.x + o.w) - Math.max(b.x, o.x)) * Math.max(0, Math.min(b.y + b.h, o.y + o.h) - Math.max(b.y, o.y)) / Math.max(1, Math.min(dd * dd, o.w * o.h))), 0);
       };
       const clampC = (cx, cy, dd) => [u.clamp(cx, m * 0.6 + dd * 0.6, W - m * 0.6 - dd * 0.6), u.clamp(cy, m * 0.6 + dd * 0.6, H - m * 0.6 - dd * 0.6)];
+      // место проверяем по настоящим размерам бейджа (таблетка и блок шире звезды)
+      const realHits = els => {
+        const b0 = u.aabb(els[0]), k0 = els[0].type === 'star' ? 0.12 : 0.02;
+        const b = { x: b0.x + b0.w * k0, y: b0.y + b0.h * k0, w: b0.w * (1 - 2 * k0), h: b0.h * (1 - 2 * k0) };
+        if (b.x < m * 0.5 || b.y < m * 0.5 || b.x + b.w > W - m * 0.5 || b.y + b.h > H - m * 0.5) return 1;
+        return obstacles.reduce((a, o) => Math.max(a, Math.max(0, Math.min(b.x + b.w, o.x + o.w) - Math.max(b.x, o.x)) * Math.max(0, Math.min(b.y + b.h, o.y + o.h) - Math.max(b.y, o.y)) / Math.max(1, Math.min(b.w * b.h, o.w * o.h))), 0);
+      };
       let best = null;
       for (const k of [1, 0.8, 0.65]) {
-        for (const c0 of cands) { const [cx, cy] = clampC(c0[0], c0[1], d * k); const ov = hits(cx, cy, d * k * 0.9); if (!best || ov < best.ov - 0.001) best = { cx, cy, k, ov }; if (ov < 0.03) break; }
+        for (const c0 of cands) {
+          const [cx, cy] = clampC(c0[0], c0[1], d * k);
+          const els = mkPromo(ctx, s, cx, cy, k);
+          const ov = realHits(els);
+          if (!best || ov < best.ov - 0.001) best = { els, ov };
+          if (ov < 0.03) break;
+        }
         if (best.ov < 0.03) break;
       }
-      if (best.ov < 0.03) fore.push(...mkPromo(ctx, s, best.cx, best.cy, best.k));
+      if (best.ov < 0.03) fore.push(...best.els);
       else ctx.notes.push('Бейдж убран: для него не нашлось места, где он не закрывает текст.');
     }
     avoidDecor(ctx, back, mid.concat(fore));
